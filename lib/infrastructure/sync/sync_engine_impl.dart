@@ -12,6 +12,7 @@ class SyncEngineImpl implements ISyncEngine {
   IPlaybackService? _playback;
   Duration _userOffset = Duration.zero;
   double _clockOffsetMs = 0;
+  double _lastDriftMs = 0;
   final int Function() _now;
 
   @override
@@ -48,7 +49,8 @@ class SyncEngineImpl implements ISyncEngine {
 
     playback.getPosition().then((actual) {
       final drift = expectedPosition - actual;
-      final driftMs = drift.inMilliseconds.abs();
+      _lastDriftMs = drift.inMilliseconds.toDouble();
+      final driftMs = _lastDriftMs.abs();
       if (driftMs < 30) {
         return;
       }
@@ -59,6 +61,8 @@ class SyncEngineImpl implements ISyncEngine {
       playback.seek(expectedPosition);
     });
   }
+
+  double get lastDriftMs => _lastDriftMs;
 
   @override
   void setUserOffset(Duration offset) {

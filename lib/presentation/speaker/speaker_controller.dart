@@ -27,6 +27,7 @@ class SpeakerController extends GetxController {
   final driftMs = 0.0.obs;
   final latencyMs = 0.obs;
   final userOffset = 0.0.obs;
+  final driftHistory = <double>[].obs;
 
   StreamSubscription<ControlMessage>? _messageSub;
   StreamSubscription<PlaybackState>? _playbackSub;
@@ -94,6 +95,10 @@ class SpeakerController extends GetxController {
       sequence: payload['sequence'] as int,
     );
     _syncEngine.onSyncTick(packet);
+    driftHistory.add(driftMs.value);
+    if (driftHistory.length > 20) {
+      driftHistory.removeAt(0);
+    }
   }
 
   void _startPinging() {
@@ -123,5 +128,6 @@ class SpeakerController extends GetxController {
     final clientTime = payload['clientTime'] as int? ?? 0;
     final playerTime = payload['playerTime'] as int? ?? 0;
     latencyMs.value = (playerTime - clientTime).abs();
+    driftMs.value = _syncEngine.lastDriftMs;
   }
 }

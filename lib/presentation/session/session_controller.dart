@@ -27,6 +27,8 @@ class SessionController extends GetxController {
   final connectionState = MessagingConnectionState.disconnected.obs;
   final reconnecting = false.obs;
   final lastError = RxnString();
+  Timer? _autoRetryTimer;
+  MessagingConnectionState? _previousState;
 
   late final StreamSubscription<MessagingConnectionState> _statusSub;
 
@@ -34,9 +36,21 @@ class SessionController extends GetxController {
   void onInit() {
     super.onInit();
     _statusSub = _messagingService.status$.listen((state) {
+      final prev = _previousState;
+      _previousState = state;
       connectionState.value = state;
       if (state == MessagingConnectionState.disconnected) {
-        lastError.value = 'Connection lost. Tap retry to reconnect.';
+        lastError.value = 'Connection lost. Retrying...';
+        _scheduleAutoRetry();
+        if (prev == MessagingConnectionState.connected) {
+          Get.snackbar('Connection lost', 'Trying to reconnect...', snackPosition: SnackPosition.BOTTOM);
+        }
+      } else {
+        _autoRetryTimer?.cancel();
+        lastError.value = null;
+        if (prev == MessagingConnectionState.disconnected) {
+          Get.snackbar('Reconnected', 'Back on the network', snackPosition: SnackPosition.BOTTOM);
+        }
       }
     });
   }
@@ -44,6 +58,7 @@ class SessionController extends GetxController {
   @override
   void onClose() {
     _statusSub.cancel();
+    _autoRetryTimer?.cancel();
     super.onClose();
   }
 
@@ -52,7 +67,14 @@ class SessionController extends GetxController {
     members.assignAll(session.members);
   }
 
-  Future<void> attemptReconnect() async {
+  void _scheduleAutoRetry() {
+    _autoRetryTimer?.cancel();
+    _autoRetryTimer = Timer(const Duration(seconds: 5), () async {
+      await attemptReconnect(showToast: false);
+    });
+  }
+
+  Future<void> attemptReconnect({bool showToast = true}) async {
     final session = currentSession.value;
     if (session == null || reconnecting.value) {
       return;
@@ -66,8 +88,15 @@ class SessionController extends GetxController {
       } else {
         await _messagingService.connect(host: session.admin.ip, port: session.admin.port);
       }
+      if (showToast) {
+        Get.snackbar('Reconnected', 'jamSync is back online', snackPosition: SnackPosition.BOTTOM);
+      }
     } catch (error) {
-      lastError.value = 'Reconnect failed: $error';
+      final message = 'Reconnect failed: $error';
+      lastError.value = message;
+      if (showToast) {
+        Get.snackbar('Reconnect failed', message, snackPosition: SnackPosition.BOTTOM);
+      }
     } finally {
       reconnecting.value = false;
     }

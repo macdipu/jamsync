@@ -46,7 +46,7 @@ class SessionPage extends GetView<SessionController> {
                           return ElevatedButton.icon(
                             onPressed: controller.reconnecting.value
                                 ? null
-                                : controller.attemptReconnect,
+                                : () => controller.attemptReconnect(showToast: true),
                             icon: controller.reconnecting.value
                                 ? const SizedBox(
                                     width: 14,

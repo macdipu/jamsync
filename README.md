@@ -1,16 +1,41 @@
-# jamsync
+# jamSync
 
-A new Flutter project.
+jamSync keeps multiple devices on the same LAN or hotspot in lockstep audio playback. The Admin/Player leads playback and Speakers follow via LAN sync ticks.
 
-## Getting Started
+## Requirements
 
-This project is a starting point for a Flutter application.
+- Flutter 3.24+
+- Devices on the same Wi-Fi network or manually created hotspot (jamSync does not create a hotspot)
 
-A few resources to get you started if this is your first Flutter project:
+## Quick Start
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```bash
+flutter pub get
+flutter run
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+During development you can run the player and speaker UIs on different emulators/devices:
+
+```bash
+flutter run -d device_id --target=lib/main.dart
+```
+
+## Architecture Highlights
+
+- Discovery via UDP multicast (see `infrastructure/network/udp_discovery_service.dart`).
+- Messaging hub over TCP sockets (see `infrastructure/network/socket_messaging_service.dart`).
+- Sync engine adjusts drift using ping/pong + sync ticks (`infrastructure/sync/sync_engine_impl.dart`).
+- Presentation uses GetX controllers (`presentation/player`, `presentation/speaker`, `presentation/session`).
+
+## Daily Use Tips
+
+1. Connect all devices to the same LAN or enable a hotspot from the Admin device.
+2. Launch jamSync on the Admin device, create a session, and leave the app in the foreground.
+3. Other devices join via the discovery list; Speakers display drift/latency metrics to help you position audio gear.
+4. If a connection drops, jamSync auto-retries and shows a retry button banner.
+
+## Troubleshooting
+
+- Use the reconnect button on the session screen if Speakers lose connection.
+- Ensure the hotspot/LAN allows multicast traffic for discovery.
+- Drift above 150 ms triggers hard seeks; watch the drift bar on the Speaker page to diagnose.

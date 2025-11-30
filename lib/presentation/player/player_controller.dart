@@ -26,6 +26,7 @@ class PlayerController extends GetxController {
   final selectedTrack = Rxn<Track>();
   final playbackPosition = Duration.zero.obs;
   final isPlaying = false.obs;
+  final errorMessage = RxnString();
 
   StreamSubscription<PlaybackState>? _playbackSubscription;
   StreamSubscription<ControlMessage>? _messageSubscription;
@@ -57,7 +58,7 @@ class PlayerController extends GetxController {
     if (session != null) {
       final updatedQueue = [...queue];
       currentSession.value = session.copyWith(queue: updatedQueue);
-      await _broadcastQueue();
+      await _broadcastQueueSafely();
     }
     if (selectedTrack.value == null) {
       await loadTrack(track);
@@ -90,7 +91,7 @@ class PlayerController extends GetxController {
     if (selectedTrack.value == track) {
       selectedTrack.value = queue.isEmpty ? null : queue.first;
     }
-    unawaited(_broadcastQueue());
+    unawaited(_broadcastQueueSafely());
   }
 
   void reorderQueue(int oldIndex, int newIndex) {
@@ -102,7 +103,7 @@ class PlayerController extends GetxController {
     final session = currentSession.value;
     if (session != null) {
       currentSession.value = session.copyWith(queue: [...queue]);
-      unawaited(_broadcastQueue());
+      unawaited(_broadcastQueueSafely());
     }
   }
 
@@ -253,5 +254,14 @@ class PlayerController extends GetxController {
       },
     );
     await _messagingService.send(message);
+  }
+
+  Future<void> _broadcastQueueSafely() async {
+    try {
+      await _broadcastQueue();
+    } catch (error) {
+      errorMessage.value = 'Failed to sync queue: $error';
+      Get.snackbar('Queue sync', errorMessage.value!, snackPosition: SnackPosition.BOTTOM);
+    }
   }
 }

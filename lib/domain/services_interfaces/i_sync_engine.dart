@@ -8,5 +8,5 @@ abstract class ISyncEngine {
   void onPong(ControlMessage message);
   void onSyncTick(SyncPacket packet);
   void setUserOffset(Duration offset);
+  double get lastDriftMs;
 }
-

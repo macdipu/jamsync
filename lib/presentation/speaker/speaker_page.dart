@@ -26,6 +26,29 @@ class SpeakerPage extends GetView<SpeakerController> {
             Obx(() => Text('Drift: ${controller.driftMs.value.toStringAsFixed(2)} ms')),
             Obx(() => Text('Latency: ${controller.latencyMs.value} ms')),
             const SizedBox(height: 16),
+            const Text('Drift trend (ms)'),
+            Obx(() {
+              final history = controller.driftHistory;
+              if (history.isEmpty) {
+                return const Text('No data yet');
+              }
+              return SizedBox(
+                height: 80,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: history
+                      .map((value) => Expanded(
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 1),
+                              height: value.abs().clamp(4.0, 80.0),
+                              color: value.abs() > 150 ? Colors.red : Colors.green,
+                            ),
+                          ))
+                      .toList(),
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
             const Text('Manual Offset (ms)'),
             Obx(() {
               return Slider(
