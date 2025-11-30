@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
 import '../core/logging/app_logger.dart';
@@ -53,7 +55,7 @@ Future<void> configureDependencies({bool listenForDiscovery = true}) async {
   );
   Get.lazyPut<ILocalStorageService>(LocalSettingsStorage.new, fenix: true);
 
-  if (listenForDiscovery) {
+  if (listenForDiscovery && !kIsWeb && !Platform.isIOS) {
     await Get.find<IDiscoveryService>().startListening();
   }
 }

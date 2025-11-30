@@ -1,28 +1,36 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 import '../../domain/services_interfaces/i_local_storage_service.dart';
 import '../../domain/value_objects/session_config.dart';
 
 class LocalSettingsStorage implements ILocalStorageService {
-  LocalSettingsStorage({Directory? directory})
-      : _directory = directory ?? Directory('${Directory.systemTemp.path}/jamSyncSettings');
+  LocalSettingsStorage({Directory? directory}) : _directoryFuture = directory != null ? Future.value(directory) : getApplicationSupportDirectory();
 
-  final Directory _directory;
+  final Future<Directory> _directoryFuture;
 
-  File get _configFile => File('${_directory.path}/session_config.json');
+  Future<File> get _configFile async {
+    final dir = await _directoryFuture;
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return File('${dir.path}/session_config.json');
+  }
 
   @override
   Future<void> saveSession(SessionResumeData data) async {
-    await _configFile.writeAsString(jsonEncode(data.toJson()));
+    final file = await _configFile;
+    await file.writeAsString(jsonEncode(data.toJson()));
   }
 
   @override
   Future<SessionResumeData?> loadSession() async {
-    if (!await _configFile.exists()) {
+    final file = await _configFile;
+    if (!await file.exists()) {
       return null;
     }
-    final content = await _configFile.readAsString();
+    final content = await file.readAsString();
     return SessionResumeData.fromJson(jsonDecode(content) as Map<String, dynamic>);
   }
 }

@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:uuid/uuid.dart';
-
 import '../../core/logging/app_logger.dart';
 import '../../domain/entities/device.dart';
 import '../../domain/services_interfaces/i_device_service.dart';
@@ -13,11 +11,24 @@ class DeviceServiceImpl implements IDeviceService {
   Device? _cachedDevice;
 
   @override
-  Future<Device> createLocalDevice({required DeviceRole role, int? port}) async {
+  Device? get cachedDevice => _cachedDevice;
+
+  @override
+  void cacheDevice(Device device) {
+    _cachedDevice = device;
+  }
+
+  @override
+  Future<Device> createLocalDevice({required DeviceRole role, int port = 51234}) async {
+    if (_cachedDevice != null && _cachedDevice!.role == role) {
+      return _cachedDevice!;
+    }
+
     final hostname = Platform.localHostname.isEmpty
         ? 'jamSync-${DateTime.now().millisecondsSinceEpoch}'
         : Platform.localHostname;
-    var ip = InternetAddress.loopbackIPv4.address;
+
+    String ip = '127.0.0.1';
     try {
       final interfaces = await NetworkInterface.list(
         includeLoopback: true,
@@ -33,28 +44,18 @@ class DeviceServiceImpl implements IDeviceService {
           );
       ip = resolved.address;
     } catch (error, stackTrace) {
-      ip = InternetAddress.loopbackIPv4.address;
-      _logger.warn('Failed to resolve IP, fallback to loopback');
-      _logger.error('Resolution error', error, stackTrace);
+      _logger.error('Failed to resolve local IP, falling back to loopback', error, stackTrace);
     }
+
     final device = Device(
-      id: const Uuid().v4(),
+      id: '$hostname-${DateTime.now().microsecondsSinceEpoch}',
       name: hostname,
       ip: ip,
-      port: port ?? 51234,
+      port: port,
       role: role,
       isLocal: true,
     );
-    await cacheLocalDevice(device);
+    _cachedDevice = device;
     return device;
   }
-
-  @override
-  Future<void> cacheLocalDevice(Device device) async {
-    _cachedDevice = device;
-  }
-
-  @override
-  Device? get cachedDevice => _cachedDevice;
 }
-

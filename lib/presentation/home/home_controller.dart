@@ -55,6 +55,7 @@ class HomeController extends GetxController {
     try {
       final session = await _sessionService.createSession(name: name, admin: admin);
       await _sessionService.announceSession(session);
+      _deviceService.cacheDevice(admin);
       await _localStorage.saveSession(SessionResumeData(
         summary: SessionSummary(
           id: session.id,
@@ -76,6 +77,7 @@ class HomeController extends GetxController {
     try {
       final localDevice = await _deviceService.createLocalDevice(role: DeviceRole.speaker);
       final session = await _sessionService.joinSession(summary, localDevice);
+      _deviceService.cacheDevice(localDevice);
       await _localStorage.saveSession(SessionResumeData(summary: summary, device: localDevice));
       lastSession.value = SessionResumeData(summary: summary, device: localDevice);
       Get.toNamed(Routes.session, arguments: session);

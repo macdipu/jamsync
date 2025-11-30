@@ -25,12 +25,18 @@ class SessionServiceImpl implements ISessionService {
   Session? _currentSession;
   final _sessionsController = StreamController<List<Session>>.broadcast();
   final _sessions = <Session>[];
+  Future<Session>? _ongoingCreation;
 
   @override
   Stream<List<Session>> get sessions$ => _sessionsController.stream;
 
   @override
-  Future<Session> createSession({required String name, required Device admin}) async {
+  Future<Session> createSession({required String name, required Device admin}) {
+    _ongoingCreation ??= _doCreateSession(name: name, admin: admin);
+    return _ongoingCreation!.whenComplete(() => _ongoingCreation = null);
+  }
+
+  Future<Session> _doCreateSession({required String name, required Device admin}) async {
     final session = Session(
       id: const Uuid().v4(),
       name: name,
