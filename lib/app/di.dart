@@ -1,0 +1,46 @@
+import 'package:get/get.dart';
+
+import '../core/logging/app_logger.dart';
+import '../domain/services_interfaces/i_discovery_service.dart';
+import '../domain/services_interfaces/i_messaging_service.dart';
+import '../domain/services_interfaces/i_playback_service.dart';
+import '../domain/services_interfaces/i_role_service.dart';
+import '../domain/services_interfaces/i_session_service.dart';
+import '../domain/services_interfaces/i_sync_engine.dart';
+import '../infrastructure/audio/just_audio_playback_service.dart';
+import '../infrastructure/network/socket_messaging_service.dart';
+import '../infrastructure/network/udp_discovery_service.dart';
+import '../infrastructure/sync/sync_engine_impl.dart';
+import '../infrastructure/application/role_service_impl.dart';
+import '../infrastructure/application/session_service_impl.dart';
+
+void configureDependencies() {
+  if (Get.isRegistered<AppLogger>()) {
+    return;
+  }
+
+  Get.put<AppLogger>(AppLogger());
+
+  Get.lazyPut<IPlaybackService>(JustAudioPlaybackService.new, fenix: true);
+  Get.lazyPut<IMessagingService>(SocketMessagingService.new, fenix: true);
+  Get.lazyPut<IDiscoveryService>(
+    () => UdpDiscoveryService(logger: Get.find<AppLogger>()),
+    fenix: true,
+  );
+  Get.lazyPut<ISyncEngine>(SyncEngineImpl.new, fenix: true);
+  Get.lazyPut<ISessionService>(
+    () => SessionServiceImpl(
+      messagingService: Get.find<IMessagingService>(),
+      discoveryService: Get.find<IDiscoveryService>(),
+      logger: Get.find<AppLogger>(),
+    ),
+    fenix: true,
+  );
+  Get.lazyPut<IRoleService>(
+    () => RoleServiceImpl(
+      messagingService: Get.find<IMessagingService>(),
+      logger: Get.find<AppLogger>(),
+    ),
+    fenix: true,
+  );
+}
