@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../domain/services_interfaces/i_messaging_service.dart';
 import '../../domain/entities/session.dart';
+import '../../domain/services_interfaces/i_messaging_service.dart';
 import 'session_controller.dart';
 
 class SessionPage extends GetView<SessionController> {
@@ -24,6 +24,7 @@ class SessionPage extends GetView<SessionController> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _SessionHero(session: current),
             Obx(() {
               final state = controller.connectionState.value;
               if (state == MessagingConnectionState.connected) {
@@ -77,7 +78,7 @@ class SessionPage extends GetView<SessionController> {
               subtitle: Text('Admin: ${current.admin.name}'),
             ),
             const Padding(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.symmetric(horizontal: 16),
               child: Text('Members', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
             Expanded(
@@ -117,6 +118,57 @@ class SessionPage extends GetView<SessionController> {
           ],
         );
       }),
+    );
+  }
+}
+
+class _SessionHero extends StatelessWidget {
+  const _SessionHero({required this.session});
+
+  final Session session;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.find<SessionController>();
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Card(
+        elevation: 3,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(session.name, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 4),
+              Text('Admin: ${session.admin.name}', style: Theme.of(context).textTheme.bodySmall),
+              const Divider(height: 24),
+              Row(
+                children: [
+                  const Icon(Icons.music_note, size: 18),
+                  const SizedBox(width: 8),
+                  Obx(() => Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(controller.nowPlayingTitle.value, style: Theme.of(context).textTheme.titleMedium),
+                            if (controller.nowPlayingArtist.value.isNotEmpty)
+                              Text(controller.nowPlayingArtist.value, style: Theme.of(context).textTheme.bodySmall),
+                          ],
+                        ),
+                      )),
+                  IconButton(
+                    icon: const Icon(Icons.queue_music),
+                    onPressed: session.queue.isEmpty
+                        ? null
+                        : () => controller.openPlayer(session.player ?? session.admin),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

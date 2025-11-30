@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:get/get.dart';
+import 'package:jamsync/presentation/session/session_controller.dart';
 
 import '../../app/routes.dart';
 import '../../core/logging/app_logger.dart';
@@ -95,6 +96,7 @@ class HomeController extends GetxController {
       await _localStorage.saveSession(SessionResumeData(summary: summary, device: localDevice));
       lastSession.value = SessionResumeData(summary: summary, device: localDevice);
       Get.toNamed(Routes.session, arguments: session);
+      Get.find<SessionController>().autoOpenSpeaker(localDevice);
       _logger.info('joinSession completed in ${sw.elapsedMilliseconds}ms');
     } finally {
       isLoading.value = false;

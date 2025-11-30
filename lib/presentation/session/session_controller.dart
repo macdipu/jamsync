@@ -27,6 +27,8 @@ class SessionController extends GetxController {
   final connectionState = MessagingConnectionState.disconnected.obs;
   final reconnecting = false.obs;
   final lastError = RxnString();
+  final nowPlayingTitle = ''.obs;
+  final nowPlayingArtist = ''.obs;
   Timer? _autoRetryTimer;
   MessagingConnectionState? _previousState;
 
@@ -74,6 +76,21 @@ class SessionController extends GetxController {
   void attachSession(Session session) {
     currentSession.value = session;
     members.assignAll(session.members);
+    _updateNowPlaying(session);
+    if (session.player?.role == DeviceRole.speaker) {
+      Get.toNamed(Routes.speaker, arguments: session);
+    }
+  }
+
+  void _updateNowPlaying(Session session) {
+    if (session.queue.isNotEmpty) {
+      final track = session.queue.first;
+      nowPlayingTitle.value = track.title;
+      nowPlayingArtist.value = track.artist;
+    } else {
+      nowPlayingTitle.value = 'No track queued';
+      nowPlayingArtist.value = '';
+    }
   }
 
   void _scheduleAutoRetry() {
@@ -118,6 +135,7 @@ class SessionController extends GetxController {
     }
     final updated = await _roleService.assignPlayer(session, device);
     attachSession(updated);
+    _navigateToRole(device);
   }
 
   Future<void> assignSpeaker(Device device) async {
@@ -129,19 +147,21 @@ class SessionController extends GetxController {
     attachSession(updated);
   }
 
-  void openPlayer(Device device) {
-    final session = currentSession.value;
-    if (session == null) {
-      return;
-    }
-    Get.toNamed(Routes.player, arguments: session.copyWith(player: device));
-  }
+  void autoOpenSpeaker(Device device) => _navigateToRole(device);
 
-  void openSpeaker(Device device) {
+  void openPlayer(Device device) => _navigateToRole(device);
+
+  void openSpeaker(Device device) => _navigateToRole(device);
+
+  void _navigateToRole(Device device) {
     final session = currentSession.value;
     if (session == null) {
       return;
     }
-    Get.toNamed(Routes.speaker, arguments: session.copyWith(player: device));
+    if (device.role == DeviceRole.player || device.role == DeviceRole.admin) {
+      Get.toNamed(Routes.player, arguments: session.copyWith(player: device));
+    } else {
+      Get.toNamed(Routes.speaker, arguments: session.copyWith(player: device));
+    }
   }
 }
