@@ -47,4 +47,3 @@ class SpeakerPage extends GetView<SpeakerController> {
     );
   }
 }
-

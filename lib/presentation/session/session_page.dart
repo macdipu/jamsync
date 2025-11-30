@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../domain/services_interfaces/i_messaging_service.dart';
 import '../../domain/entities/session.dart';
 import 'session_controller.dart';
 
@@ -23,6 +24,54 @@ class SessionPage extends GetView<SessionController> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Obx(() {
+              final state = controller.connectionState.value;
+              if (state == MessagingConnectionState.connected) {
+                return const SizedBox.shrink();
+              }
+              return Container(
+                width: double.infinity,
+                color: Colors.amber.shade100,
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.wifi_off, size: 18),
+                        const SizedBox(width: 8),
+                        Text('Connection: ${state.name}'),
+                        const Spacer(),
+                        Obx(() {
+                          return ElevatedButton.icon(
+                            onPressed: controller.reconnecting.value
+                                ? null
+                                : controller.attemptReconnect,
+                            icon: controller.reconnecting.value
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.refresh, size: 16),
+                            label: Text(controller.reconnecting.value ? 'Retrying...' : 'Retry'),
+                          );
+                        }),
+                      ],
+                    ),
+                    Obx(() {
+                      final error = controller.lastError.value;
+                      return error == null
+                          ? const SizedBox.shrink()
+                          : Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(error, style: const TextStyle(color: Colors.red)),
+                            );
+                    }),
+                  ],
+                ),
+              );
+            }),
             ListTile(
               title: Text(current.name),
               subtitle: Text('Admin: ${current.admin.name}'),

@@ -7,24 +7,35 @@ import '../../domain/services_interfaces/i_messaging_service.dart';
 
 class SocketMessagingService implements IMessagingService {
   final _controller = StreamController<ControlMessage>.broadcast();
+  final _statusController = StreamController<MessagingConnectionState>.broadcast();
   ServerSocket? _server;
   Socket? _client;
   final _connections = <Socket>[];
 
   @override
   Stream<ControlMessage> get messages$ => _controller.stream;
+  @override
+  Stream<MessagingConnectionState> get status$ => _statusController.stream;
 
   @override
   Future<void> connect({required String host, required int port}) async {
     await disconnect();
+    _statusController.add(MessagingConnectionState.connecting);
     _client = await Socket.connect(host, port);
-    _client!.listen(_handleIncoming, onDone: disconnect, onError: (_) => disconnect());
+    _statusController.add(MessagingConnectionState.connected);
+    _client!.listen(_handleIncoming, onDone: _handleDisconnect, onError: (_) => _handleDisconnect());
+  }
+
+  void _handleDisconnect() {
+    _client = null;
+    _statusController.add(MessagingConnectionState.disconnected);
   }
 
   @override
   Future<void> disconnect() async {
     await _client?.close();
     _client = null;
+    _statusController.add(MessagingConnectionState.disconnected);
   }
 
   @override
@@ -65,6 +76,7 @@ class SocketMessagingService implements IMessagingService {
   Future<void> startHub({required int port}) async {
     await stopHub();
     _server = await ServerSocket.bind(InternetAddress.anyIPv4, port);
+    _statusController.add(MessagingConnectionState.connected);
     _server!.listen((client) {
       _connections.add(client);
       client.listen(
@@ -83,5 +95,6 @@ class SocketMessagingService implements IMessagingService {
     _connections.clear();
     await _server?.close();
     _server = null;
+    _statusController.add(MessagingConnectionState.disconnected);
   }
 }

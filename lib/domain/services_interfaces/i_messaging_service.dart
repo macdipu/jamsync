@@ -1,5 +1,7 @@
 import '../entities/control_message.dart';
 
+enum MessagingConnectionState { disconnected, connecting, connected }
+
 abstract class IMessagingService {
   Future<void> startHub({required int port});
   Future<void> stopHub();
@@ -7,5 +9,5 @@ abstract class IMessagingService {
   Future<void> disconnect();
   Stream<ControlMessage> get messages$;
   Future<void> send(ControlMessage message);
+  Stream<MessagingConnectionState> get status$;
 }
-

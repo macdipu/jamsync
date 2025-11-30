@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:collection/collection.dart';
 import 'package:get/get.dart';
 
 import '../../core/utils/time_utils.dart';

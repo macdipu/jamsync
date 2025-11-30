@@ -1,23 +1,76 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 
 import '../../app/routes.dart';
 import '../../domain/entities/device.dart';
 import '../../domain/entities/session.dart';
+import '../../domain/services_interfaces/i_messaging_service.dart';
 import '../../domain/services_interfaces/i_role_service.dart';
+import '../../domain/services_interfaces/i_session_service.dart';
 
 class SessionController extends GetxController {
   SessionController({
     required IRoleService roleService,
-  }) : _roleService = roleService;
+    required ISessionService sessionService,
+    IMessagingService? messagingService,
+  })  : _roleService = roleService,
+        _sessionService = sessionService,
+        _messagingService = messagingService ?? Get.find<IMessagingService>();
 
   final IRoleService _roleService;
+  final ISessionService _sessionService;
+  final IMessagingService _messagingService;
 
   final currentSession = Rxn<Session>();
   final members = <Device>[].obs;
+  final connectionState = MessagingConnectionState.disconnected.obs;
+  final reconnecting = false.obs;
+  final lastError = RxnString();
+
+  late final StreamSubscription<MessagingConnectionState> _statusSub;
+
+  @override
+  void onInit() {
+    super.onInit();
+    _statusSub = _messagingService.status$.listen((state) {
+      connectionState.value = state;
+      if (state == MessagingConnectionState.disconnected) {
+        lastError.value = 'Connection lost. Tap retry to reconnect.';
+      }
+    });
+  }
+
+  @override
+  void onClose() {
+    _statusSub.cancel();
+    super.onClose();
+  }
 
   void attachSession(Session session) {
     currentSession.value = session;
     members.assignAll(session.members);
+  }
+
+  Future<void> attemptReconnect() async {
+    final session = currentSession.value;
+    if (session == null || reconnecting.value) {
+      return;
+    }
+    reconnecting.value = true;
+    lastError.value = null;
+    try {
+      if (session.admin.isLocal) {
+        await _sessionService.announceSession(session);
+        connectionState.value = MessagingConnectionState.connected;
+      } else {
+        await _messagingService.connect(host: session.admin.ip, port: session.admin.port);
+      }
+    } catch (error) {
+      lastError.value = 'Reconnect failed: $error';
+    } finally {
+      reconnecting.value = false;
+    }
   }
 
   Future<void> assignPlayer(Device device) async {
