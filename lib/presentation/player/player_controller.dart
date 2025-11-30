@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:collection/collection.dart';
 import 'package:get/get.dart';
@@ -32,12 +31,14 @@ class PlayerController extends GetxController {
   StreamSubscription<PlaybackState>? _playbackSubscription;
   StreamSubscription<ControlMessage>? _messageSubscription;
   Timer? _positionTimer;
+  Timer? _syncTimer;
 
   @override
   void onClose() {
     _playbackSubscription?.cancel();
     _messageSubscription?.cancel();
     _positionTimer?.cancel();
+    _syncTimer?.cancel();
     super.onClose();
   }
 
@@ -48,6 +49,7 @@ class PlayerController extends GetxController {
     _observePlayback();
     _startPositionPolling();
     _subscribeToMessages(session.id);
+    _startSyncTicks();
   }
 
   Future<void> addTrack(Track track) async {
@@ -128,6 +130,36 @@ class PlayerController extends GetxController {
     });
   }
 
+  void _startSyncTicks() {
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      final session = currentSession.value;
+      final track = selectedTrack.value;
+      if (session == null || track == null) {
+        return;
+      }
+      final position = await _playbackService.getPosition();
+      final packet = SyncPacket(
+        sessionId: session.id,
+        trackId: track.id,
+        position: position,
+        networkTime: TimeUtils.nowMs(),
+        sequence: TimeUtils.nowMs(),
+      );
+      final message = ControlMessage(
+        type: MessageType.syncTick,
+        payload: {
+          'sessionId': packet.sessionId,
+          'trackId': packet.trackId,
+          'positionMs': packet.position.inMilliseconds,
+          'networkTime': packet.networkTime,
+          'sequence': packet.sequence,
+        },
+      );
+      await _messagingService.send(message);
+    });
+  }
+
   void _subscribeToMessages(String sessionId) {
     _messageSubscription?.cancel();
     _messageSubscription = _messagingService.messages$.listen((message) {
@@ -142,10 +174,29 @@ class PlayerController extends GetxController {
         case MessageType.roleChange:
           _applyRoleChange(message.payload);
           break;
+        case MessageType.ping:
+          _handlePing(message.payload);
+          break;
         default:
           break;
       }
     });
+  }
+
+  Future<void> _handlePing(Map<String, dynamic> payload) async {
+    final session = currentSession.value;
+    if (session == null) {
+      return;
+    }
+    final message = ControlMessage(
+      type: MessageType.pong,
+      payload: {
+        'sessionId': session.id,
+        'clientTime': payload['clientTime'],
+        'playerTime': TimeUtils.nowMs(),
+      },
+    );
+    await _messagingService.send(message);
   }
 
   void _applyQueueUpdate(dynamic payload) {

@@ -29,11 +29,14 @@ class SocketMessagingService implements IMessagingService {
 
   @override
   Future<void> send(ControlMessage message) async {
-    final socket = _client;
-    if (socket == null) {
-      throw StateError('Not connected');
+    if (_client != null) {
+      _client!.writeln(jsonEncode(message.toJson()));
+      return;
     }
-    socket.writeln(jsonEncode(message.toJson()));
+    final payload = jsonEncode(message.toJson());
+    for (final socket in _connections) {
+      socket.writeln(payload);
+    }
   }
 
   void _handleIncoming(List<int> data, {Socket? origin}) {
