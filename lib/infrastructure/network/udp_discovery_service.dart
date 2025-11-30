@@ -32,8 +32,8 @@ class UdpDiscoveryService implements IDiscoveryService {
       final payload = jsonEncode(
         {
           'type': 'SESSION_ANNOUNCE',
-          'id': summary.id,
-          'name': summary.name,
+          'sessionId': summary.id,
+          'sessionName': summary.name,
           'hostName': summary.hostName,
           'ip': summary.ip,
           'port': summary.port,
@@ -68,7 +68,6 @@ class UdpDiscoveryService implements IDiscoveryService {
       InternetAddress.anyIPv4,
       _multicastPort,
       reuseAddress: true,
-      reusePort: true,
     );
     _socket = socket;
     socket.joinMulticast(InternetAddress(_multicastAddress));
