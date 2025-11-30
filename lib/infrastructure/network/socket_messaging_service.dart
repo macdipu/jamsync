@@ -11,6 +11,7 @@ class SocketMessagingService implements IMessagingService {
   ServerSocket? _server;
   Socket? _client;
   final _connections = <Socket>[];
+  static const _connectTimeout = Duration(seconds: 5);
 
   @override
   Stream<ControlMessage> get messages$ => _controller.stream;
@@ -21,9 +22,17 @@ class SocketMessagingService implements IMessagingService {
   Future<void> connect({required String host, required int port}) async {
     await disconnect();
     _statusController.add(MessagingConnectionState.connecting);
-    _client = await Socket.connect(host, port);
-    _statusController.add(MessagingConnectionState.connected);
-    _client!.listen(_handleIncoming, onDone: _handleDisconnect, onError: (_) => _handleDisconnect());
+    try {
+      _client = await Socket.connect(host, port).timeout(_connectTimeout);
+      _statusController.add(MessagingConnectionState.connected);
+      _client!.listen(_handleIncoming, onDone: _handleDisconnect, onError: (_) => _handleDisconnect());
+    } on SocketException catch (error) {
+      _handleDisconnect();
+      throw SocketException('Unable to connect to $host:$port (${error.message})');
+    } on TimeoutException {
+      _handleDisconnect();
+      throw SocketException('Connection to $host:$port timed out');
+    }
   }
 
   void _handleDisconnect() {
