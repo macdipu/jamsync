@@ -34,5 +34,29 @@ class Device {
       isLocal: isLocal ?? this.isLocal,
     );
   }
-}
 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'ip': ip,
+      'port': port,
+      'role': role.name,
+      'isLocal': isLocal,
+    };
+  }
+
+  factory Device.fromJson(Map<String, dynamic> json) {
+    return Device(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      ip: json['ip'] as String,
+      port: json['port'] as int,
+      role: DeviceRole.values.firstWhere(
+        (role) => role.name == json['role'],
+        orElse: () => DeviceRole.speaker,
+      ),
+      isLocal: json['isLocal'] as bool? ?? false,
+    );
+  }
+}

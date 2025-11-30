@@ -1,18 +1,24 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:get/get.dart';
 
+import '../../domain/entities/control_message.dart';
 import '../../domain/entities/device.dart';
 import '../../domain/entities/session.dart';
 import '../../domain/entities/track.dart';
+import '../../domain/services_interfaces/i_messaging_service.dart';
 import '../../domain/services_interfaces/i_playback_service.dart';
 
 class PlayerController extends GetxController {
   PlayerController({
     required IPlaybackService playbackService,
-  }) : _playbackService = playbackService;
+    required IMessagingService messagingService,
+  })  : _playbackService = playbackService,
+        _messagingService = messagingService;
 
   final IPlaybackService _playbackService;
+  final IMessagingService _messagingService;
 
   final currentSession = Rxn<Session>();
   final queue = <Track>[].obs;
@@ -21,11 +27,13 @@ class PlayerController extends GetxController {
   final isPlaying = false.obs;
 
   StreamSubscription<PlaybackState>? _playbackSubscription;
+  StreamSubscription<ControlMessage>? _messageSubscription;
   Timer? _positionTimer;
 
   @override
   void onClose() {
     _playbackSubscription?.cancel();
+    _messageSubscription?.cancel();
     _positionTimer?.cancel();
     super.onClose();
   }
@@ -36,6 +44,7 @@ class PlayerController extends GetxController {
     selectedTrack.value = session.queue.isEmpty ? null : session.queue.first;
     _observePlayback();
     _startPositionPolling();
+    _subscribeToMessages(session.id);
   }
 
   Future<void> addTrack(Track track) async {
@@ -44,6 +53,7 @@ class PlayerController extends GetxController {
     if (session != null) {
       final updatedQueue = [...queue];
       currentSession.value = session.copyWith(queue: updatedQueue);
+      await _broadcastQueue();
     }
     if (selectedTrack.value == null) {
       await loadTrack(track);
@@ -76,6 +86,7 @@ class PlayerController extends GetxController {
     if (selectedTrack.value == track) {
       selectedTrack.value = queue.isEmpty ? null : queue.first;
     }
+    unawaited(_broadcastQueue());
   }
 
   void reorderQueue(int oldIndex, int newIndex) {
@@ -87,6 +98,7 @@ class PlayerController extends GetxController {
     final session = currentSession.value;
     if (session != null) {
       currentSession.value = session.copyWith(queue: [...queue]);
+      unawaited(_broadcastQueue());
     }
   }
 
@@ -111,5 +123,82 @@ class PlayerController extends GetxController {
       final position = await _playbackService.getPosition();
       playbackPosition.value = position;
     });
+  }
+
+  void _subscribeToMessages(String sessionId) {
+    _messageSubscription?.cancel();
+    _messageSubscription = _messagingService.messages$.listen((message) {
+      final targetSession = message.payload['sessionId'] as String?;
+      if (targetSession != sessionId) {
+        return;
+      }
+      switch (message.type) {
+        case MessageType.queueUpdate:
+          _applyQueueUpdate(message.payload['queue']);
+          break;
+        case MessageType.roleChange:
+          _applyRoleChange(message.payload);
+          break;
+        default:
+          break;
+      }
+    });
+  }
+
+  void _applyQueueUpdate(dynamic payload) {
+    if (payload is! List) {
+      return;
+    }
+    final tracks = payload
+        .cast<Map<String, dynamic>>()
+        .map(Track.fromJson)
+        .toList();
+    queue.assignAll(tracks);
+    final session = currentSession.value;
+    if (session != null) {
+      currentSession.value = session.copyWith(queue: tracks);
+    }
+    if (selectedTrack.value == null && tracks.isNotEmpty) {
+      selectedTrack.value = tracks.first;
+    }
+  }
+
+  void _applyRoleChange(Map<String, dynamic> payload) {
+    final session = currentSession.value;
+    if (session == null) {
+      return;
+    }
+    final members = [...session.members];
+    final String? newPlayerId = payload['newPlayerId'] as String?;
+    final String? speakerId = payload['speakerId'] as String?;
+    if (newPlayerId != null) {
+      final updatedMembers = members
+          .map((device) => device.copyWith(role: device.id == newPlayerId ? DeviceRole.player : DeviceRole.speaker))
+          .toList();
+      final newPlayer = updatedMembers.firstWhereOrNull((device) => device.id == newPlayerId);
+      currentSession.value = session.copyWith(player: newPlayer, members: updatedMembers);
+      return;
+    }
+    if (speakerId != null) {
+      final updatedMembers = members
+          .map((device) => device.id == speakerId ? device.copyWith(role: DeviceRole.speaker) : device)
+          .toList();
+      currentSession.value = session.copyWith(members: updatedMembers);
+    }
+  }
+
+  Future<void> _broadcastQueue() async {
+    final session = currentSession.value;
+    if (session == null) {
+      return;
+    }
+    final message = ControlMessage(
+      type: MessageType.queueUpdate,
+      payload: {
+        'sessionId': session.id,
+        'queue': queue.map((track) => track.toJson()).toList(),
+      },
+    );
+    await _messagingService.send(message);
   }
 }

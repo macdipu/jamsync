@@ -5,6 +5,7 @@ enum MessageType {
   joinReject,
   roleChange,
   playbackCommand,
+  queueUpdate,
   syncTick,
   ping,
   pong,
@@ -37,4 +38,3 @@ class ControlMessage {
     );
   }
 }
-

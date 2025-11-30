@@ -40,9 +40,9 @@ class Session {
     return {
       'id': id,
       'name': name,
-      'admin': _deviceToJson(admin),
-      'player': player == null ? null : _deviceToJson(player!),
-      'members': members.map(_deviceToJson).toList(),
+      'admin': admin.toJson(),
+      'player': player?.toJson(),
+      'members': members.map((device) => device.toJson()).toList(),
       'queue': queue.map((track) => track.toJson()).toList(),
     };
   }
@@ -51,40 +51,18 @@ class Session {
     return Session(
       id: json['id'] as String,
       name: json['name'] as String,
-      admin: _deviceFromJson(json['admin'] as Map<String, dynamic>),
+      admin: Device.fromJson(json['admin'] as Map<String, dynamic>),
       player: json['player'] == null
           ? null
-          : _deviceFromJson(json['player'] as Map<String, dynamic>),
+          : Device.fromJson(json['player'] as Map<String, dynamic>),
       members: (json['members'] as List<dynamic>)
           .cast<Map<String, dynamic>>()
-          .map(_deviceFromJson)
+          .map(Device.fromJson)
           .toList(),
       queue: (json['queue'] as List<dynamic>)
           .cast<Map<String, dynamic>>()
           .map(Track.fromJson)
           .toList(),
-    );
-  }
-
-  static Map<String, dynamic> _deviceToJson(Device device) {
-    return {
-      'id': device.id,
-      'name': device.name,
-      'ip': device.ip,
-      'port': device.port,
-      'role': device.role.name,
-      'isLocal': device.isLocal,
-    };
-  }
-
-  static Device _deviceFromJson(Map<String, dynamic> json) {
-    return Device(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      ip: json['ip'] as String,
-      port: json['port'] as int,
-      role: DeviceRole.values.firstWhere((role) => role.name == json['role']),
-      isLocal: json['isLocal'] as bool? ?? false,
     );
   }
 }
