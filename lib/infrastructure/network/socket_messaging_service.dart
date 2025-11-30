@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import '../../domain/entities/control_message.dart';
 import '../../domain/services_interfaces/i_messaging_service.dart';
@@ -21,7 +22,7 @@ class SocketMessagingService implements IMessagingService {
   Future<void> connect({required String host, required int port}) async {
     await disconnect();
     _statusController.add(MessagingConnectionState.connecting);
-    _client = await Socket.connect(host, port);
+    _client = await Isolate.run(() => Socket.connect(host, port));
     _statusController.add(MessagingConnectionState.connected);
     _client!.listen(_handleIncoming, onDone: _handleDisconnect, onError: (_) => _handleDisconnect());
   }
@@ -75,7 +76,7 @@ class SocketMessagingService implements IMessagingService {
   @override
   Future<void> startHub({required int port}) async {
     await stopHub();
-    _server = await ServerSocket.bind(InternetAddress.anyIPv4, port);
+    _server = await Isolate.run(() => ServerSocket.bind(InternetAddress.anyIPv4, port));
     _statusController.add(MessagingConnectionState.connected);
     _server!.listen((client) {
       _connections.add(client);

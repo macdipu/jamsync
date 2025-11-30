@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import '../../core/logging/app_logger.dart';
 import '../../domain/entities/device.dart';
@@ -28,24 +29,7 @@ class DeviceServiceImpl implements IDeviceService {
         ? 'jamSync-${DateTime.now().millisecondsSinceEpoch}'
         : Platform.localHostname;
 
-    String ip = '127.0.0.1';
-    try {
-      final interfaces = await NetworkInterface.list(
-        includeLoopback: true,
-        type: InternetAddressType.IPv4,
-      );
-      final resolved = interfaces
-          .expand((iface) => iface.addresses)
-          .firstWhere(
-            (addr) => !addr.isLoopback && addr.type == InternetAddressType.IPv4,
-            orElse: () => interfaces.isNotEmpty && interfaces.first.addresses.isNotEmpty
-                ? interfaces.first.addresses.first
-                : InternetAddress.loopbackIPv4,
-          );
-      ip = resolved.address;
-    } catch (error, stackTrace) {
-      _logger.error('Failed to resolve local IP, falling back to loopback', error, stackTrace);
-    }
+    final ip = await _resolveLocalIp();
 
     final device = Device(
       id: '$hostname-${DateTime.now().microsecondsSinceEpoch}',
@@ -57,5 +41,28 @@ class DeviceServiceImpl implements IDeviceService {
     );
     _cachedDevice = device;
     return device;
+  }
+
+  Future<String> _resolveLocalIp() async {
+    return Isolate.run(() async {
+      try {
+        final interfaces = await NetworkInterface.list(
+          includeLoopback: true,
+          type: InternetAddressType.IPv4,
+        );
+        final resolved = interfaces
+            .expand((iface) => iface.addresses)
+            .firstWhere(
+              (addr) => !addr.isLoopback && addr.type == InternetAddressType.IPv4,
+              orElse: () => interfaces.isNotEmpty && interfaces.first.addresses.isNotEmpty
+                  ? interfaces.first.addresses.first
+                  : InternetAddress.loopbackIPv4,
+            );
+        return resolved.address;
+      } catch (error, stackTrace) {
+        _logger.error('Failed to resolve local IP, falling back to loopback', error, stackTrace);
+        return InternetAddress.loopbackIPv4.address;
+      }
+    });
   }
 }

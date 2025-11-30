@@ -17,6 +17,7 @@ class UdpDiscoveryService implements IDiscoveryService {
   final _controller = StreamController<List<SessionSummary>>.broadcast();
   final _sessions = <SessionSummary>[];
   RawDatagramSocket? _socket;
+  bool _listening = false;
   Timer? _announceTimer;
   SessionSummary? _currentAnnouncement;
 
@@ -25,28 +26,24 @@ class UdpDiscoveryService implements IDiscoveryService {
 
   @override
   Future<void> startAnnouncing(SessionSummary summary) async {
+    _logger.info('Start announcing ${summary.name}');
     _currentAnnouncement = summary;
-    await _ensureSocket();
-    _announceTimer?.cancel();
-    _announceTimer = Timer.periodic(_announceInterval, (_) => _sendAnnouncement());
-    _sendAnnouncement();
-  }
-
-  void _sendAnnouncement() {
-    final socket = _socket;
-    final announcement = _currentAnnouncement;
-    if (socket == null || announcement == null) {
-      return;
-    }
-    final payload = jsonEncode({
-      'type': 'SESSION_ANNOUNCE',
-      'sessionId': announcement.id,
-      'sessionName': announcement.name,
-      'hostName': announcement.hostName,
-      'ip': announcement.ip,
-      'port': announcement.port,
+    _announceTimer ??= Timer.periodic(_announceInterval, (_) {
+      final payload = jsonEncode(
+        {
+          'type': 'SESSION_ANNOUNCE',
+          'id': summary.id,
+          'name': summary.name,
+          'hostName': summary.hostName,
+          'ip': summary.ip,
+          'port': summary.port,
+        },
+      );
+      RawDatagramSocket.bind(InternetAddress.anyIPv4, 0).then((socket) {
+        socket.send(payload.codeUnits, InternetAddress(_multicastAddress), _multicastPort);
+        socket.close();
+      });
     });
-    socket.send(utf8.encode(payload), InternetAddress(_multicastAddress), _multicastPort);
   }
 
   @override
@@ -62,19 +59,20 @@ class UdpDiscoveryService implements IDiscoveryService {
 
   @override
   Future<void> startListening() async {
-    await _ensureSocket();
-  }
-
-  Future<void> _ensureSocket() async {
-    if (_socket != null) {
+    if (_listening) {
       return;
     }
-    final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, _multicastPort);
-    socket.joinMulticast(InternetAddress(_multicastAddress));
-    socket.readEventsEnabled = true;
-    socket.listen(_handlePacket);
+    _listening = true;
+    _logger.info('Discovery listening on $_multicastAddress:$_multicastPort');
+    final socket = await RawDatagramSocket.bind(
+      InternetAddress.anyIPv4,
+      _multicastPort,
+      reuseAddress: true,
+      reusePort: true,
+    );
     _socket = socket;
-    _logger.info('Discovery socket ready on $_multicastPort');
+    socket.joinMulticast(InternetAddress(_multicastAddress));
+    socket.listen(_handlePacket);
   }
 
   void _handlePacket(RawSocketEvent event) {
@@ -116,11 +114,11 @@ class UdpDiscoveryService implements IDiscoveryService {
 
   @override
   Future<void> stopListening() async {
-    _announceTimer?.cancel();
-    _announceTimer = null;
+    if (!_listening) {
+      return;
+    }
+    _listening = false;
     _socket?.close();
     _socket = null;
-    _sessions.clear();
-    _controller.add(const []);
   }
 }
