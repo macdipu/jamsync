@@ -23,7 +23,6 @@ class SessionServiceImpl implements ISessionService {
   final IDiscoveryService _discoveryService;
   final AppLogger _logger;
   Session? _currentSession;
-  SessionSummary? _connectedSummary;
   final _sessionsController = StreamController<List<Session>>.broadcast();
   final _sessions = <Session>[];
 
@@ -72,16 +71,29 @@ class SessionServiceImpl implements ISessionService {
     if (_currentSession?.id == sessionId) {
       _currentSession = null;
     }
-    if (_connectedSummary?.id == sessionId) {
-      _connectedSummary = null;
-    }
   }
 
   @override
-  Future<void> joinSession(SessionSummary summary) async {
-    await _discoveryService.startListening();
+  Future<Session> joinSession(SessionSummary summary, Device localDevice) async {
     await _messagingService.connect(host: summary.ip, port: summary.port);
-    _connectedSummary = summary;
-    _logger.info('Joined session ${summary.id} @ ${summary.ip}:${summary.port}');
+    final session = Session(
+      id: summary.id,
+      name: summary.name,
+      admin: Device(
+        id: summary.id,
+        name: summary.hostName,
+        ip: summary.ip,
+        port: summary.port,
+        role: DeviceRole.admin,
+      ),
+      player: null,
+      members: [localDevice],
+      queue: const [],
+    );
+    _sessions
+      ..removeWhere((existing) => existing.id == session.id)
+      ..add(session);
+    _sessionsController.add(List.unmodifiable(_sessions));
+    return session;
   }
 }

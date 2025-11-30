@@ -7,5 +7,5 @@ abstract class ISessionService {
   Future<void> announceSession(Session session);
   Future<void> stopSession(String sessionId);
   Stream<List<Session>> get sessions$;
-  Future<void> joinSession(SessionSummary summary);
+  Future<Session> joinSession(SessionSummary summary, Device localDevice);
 }

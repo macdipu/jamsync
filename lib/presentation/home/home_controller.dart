@@ -7,16 +7,20 @@ import '../../domain/entities/session.dart';
 import '../../domain/entities/session_summary.dart';
 import '../../domain/services_interfaces/i_session_service.dart';
 import '../../domain/services_interfaces/i_discovery_service.dart';
+import '../../domain/services_interfaces/i_device_service.dart';
 
 class HomeController extends GetxController {
   HomeController({
     required ISessionService sessionService,
     IDiscoveryService? discoveryService,
+    IDeviceService? deviceService,
   })  : _sessionService = sessionService,
-        _discoveryService = discoveryService ?? Get.find<IDiscoveryService>();
+        _discoveryService = discoveryService ?? Get.find<IDiscoveryService>(),
+        _deviceService = deviceService ?? Get.find<IDeviceService>();
 
   final ISessionService _sessionService;
   final IDiscoveryService _discoveryService;
+  final IDeviceService _deviceService;
 
   final sessions = <Session>[].obs;
   final isLoading = false.obs;
@@ -53,22 +57,8 @@ class HomeController extends GetxController {
   Future<void> joinSession(SessionSummary summary) async {
     isLoading.value = true;
     try {
-      await _sessionService.joinSession(summary);
-      final admin = Device(
-        id: summary.id,
-        name: summary.hostName,
-        ip: summary.ip,
-        port: summary.port,
-        role: DeviceRole.admin,
-      );
-      final session = Session(
-        id: summary.id,
-        name: summary.name,
-        admin: admin,
-        player: admin,
-        members: [admin],
-        queue: const [],
-      );
+      final localDevice = await _deviceService.createLocalDevice(role: DeviceRole.speaker);
+      final session = await _sessionService.joinSession(summary, localDevice);
       Get.toNamed(Routes.session, arguments: session);
     } finally {
       isLoading.value = false;

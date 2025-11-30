@@ -5,22 +5,14 @@ import 'package:get/get.dart';
 import '../../domain/entities/device.dart';
 import '../../domain/entities/session.dart';
 import '../../domain/entities/track.dart';
-import '../../domain/services_interfaces/i_messaging_service.dart';
 import '../../domain/services_interfaces/i_playback_service.dart';
-import '../../domain/services_interfaces/i_session_service.dart';
 
 class PlayerController extends GetxController {
   PlayerController({
     required IPlaybackService playbackService,
-    required IMessagingService messagingService,
-    required ISessionService sessionService,
-  })  : _playbackService = playbackService,
-        _messagingService = messagingService,
-        _sessionService = sessionService;
+  }) : _playbackService = playbackService;
 
   final IPlaybackService _playbackService;
-  final IMessagingService _messagingService;
-  final ISessionService _sessionService;
 
   final currentSession = Rxn<Session>();
   final queue = <Track>[].obs;
