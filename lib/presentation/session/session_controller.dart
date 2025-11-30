@@ -35,7 +35,7 @@ class SessionController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _statusSub = _messagingService.status$.listen((state) {
+    _statusSub = _messagingService.status$.listen((state) async {
       final prev = _previousState;
       _previousState = state;
       connectionState.value = state;
@@ -50,9 +50,18 @@ class SessionController extends GetxController {
         lastError.value = null;
         if (prev == MessagingConnectionState.disconnected) {
           Get.snackbar('Reconnected', 'Back on the network', snackPosition: SnackPosition.BOTTOM);
+          _restartAnnouncement();
         }
       }
     });
+  }
+
+  Future<void> _restartAnnouncement() async {
+    final session = currentSession.value;
+    if (session == null || !session.admin.isLocal) {
+      return;
+    }
+    await _sessionService.announceSession(session);
   }
 
   @override

@@ -15,6 +15,8 @@ import '../infrastructure/sync/sync_engine_impl.dart';
 import '../infrastructure/application/role_service_impl.dart';
 import '../infrastructure/application/session_service_impl.dart';
 import '../infrastructure/application/device_service_impl.dart';
+import '../infrastructure/storage/local_settings_storage.dart';
+import '../domain/services_interfaces/i_local_storage_service.dart';
 
 Future<void> configureDependencies({bool listenForDiscovery = true}) async {
   if (Get.isRegistered<AppLogger>()) {
@@ -49,6 +51,7 @@ Future<void> configureDependencies({bool listenForDiscovery = true}) async {
     () => DeviceServiceImpl(logger: Get.find<AppLogger>()),
     fenix: true,
   );
+  Get.lazyPut<ILocalStorageService>(LocalSettingsStorage.new, fenix: true);
 
   if (listenForDiscovery) {
     await Get.find<IDiscoveryService>().startListening();

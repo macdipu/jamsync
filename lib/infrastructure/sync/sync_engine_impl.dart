@@ -62,6 +62,7 @@ class SyncEngineImpl implements ISyncEngine {
     });
   }
 
+  @override
   double get lastDriftMs => _lastDriftMs;
 
   @override

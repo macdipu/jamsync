@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../app/routes.dart';
 import '../../domain/entities/device.dart';
 import '../../domain/entities/session_summary.dart';
 import 'home_controller.dart';
@@ -23,11 +24,33 @@ class HomePage extends GetView<HomeController> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ElevatedButton(
-                onPressed: () async {
-                  await _handleCreateSession(context);
-                },
-                child: const Text('Create Session'),
+              Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: controller.isLoading.value
+                        ? null
+                        : () async {
+                            await _handleCreateSession(context);
+                          },
+                    child: const Text('Create Session'),
+                  ),
+                  const SizedBox(width: 8),
+                  Obx(() {
+                    final resume = controller.lastSession.value;
+                    if (resume == null) {
+                      return const SizedBox.shrink();
+                    }
+                    return OutlinedButton(
+                      onPressed: controller.isLoading.value ? null : controller.resumeLastSession,
+                      child: const Text('Resume last session'),
+                    );
+                  }),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.list_alt),
+                    onPressed: () => Get.toNamed(Routes.logs),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               Expanded(

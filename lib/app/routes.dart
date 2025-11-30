@@ -8,12 +8,14 @@ import '../presentation/session/session_binding.dart';
 import '../presentation/session/session_page.dart';
 import '../presentation/speaker/speaker_binding.dart';
 import '../presentation/speaker/speaker_page.dart';
+import '../presentation/logs/logs_page.dart';
 
 class Routes {
   static const home = '/';
   static const session = '/session';
   static const player = '/player';
   static const speaker = '/speaker';
+  static const logs = '/logs';
 }
 
 final appRoutes = <GetPage<dynamic>>[
@@ -36,5 +38,9 @@ final appRoutes = <GetPage<dynamic>>[
     name: Routes.speaker,
     page: SpeakerPage.new,
     binding: SpeakerBinding(),
+  ),
+  GetPage(
+    name: Routes.logs,
+    page: LogsPage.new,
   ),
 ];
