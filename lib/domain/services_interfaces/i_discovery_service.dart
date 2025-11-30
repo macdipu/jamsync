@@ -1,18 +1,4 @@
-class SessionSummary {
-  const SessionSummary({
-    required this.id,
-    required this.name,
-    required this.hostName,
-    required this.ip,
-    required this.port,
-  });
-
-  final String id;
-  final String name;
-  final String hostName;
-  final String ip;
-  final int port;
-}
+import '../entities/session_summary.dart';
 
 abstract class IDiscoveryService {
   Stream<List<SessionSummary>> get sessions$;
@@ -21,4 +7,3 @@ abstract class IDiscoveryService {
   Future<void> startListening();
   Future<void> stopListening();
 }
-

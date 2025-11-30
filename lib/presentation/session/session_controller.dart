@@ -3,16 +3,12 @@ import 'package:get/get.dart';
 import '../../domain/entities/device.dart';
 import '../../domain/entities/session.dart';
 import '../../domain/services_interfaces/i_role_service.dart';
-import '../../domain/services_interfaces/i_session_service.dart';
 
 class SessionController extends GetxController {
   SessionController({
-    required ISessionService sessionService,
     required IRoleService roleService,
-  })  : _sessionService = sessionService,
-        _roleService = roleService;
+  }) : _roleService = roleService;
 
-  final ISessionService _sessionService;
   final IRoleService _roleService;
 
   final currentSession = Rxn<Session>();
@@ -41,4 +37,3 @@ class SessionController extends GetxController {
     attachSession(updated);
   }
 }
-

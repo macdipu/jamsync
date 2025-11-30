@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/logging/app_logger.dart';
 import '../../domain/entities/device.dart';
 import '../../domain/entities/session.dart';
+import '../../domain/entities/session_summary.dart';
 import '../../domain/services_interfaces/i_discovery_service.dart';
 import '../../domain/services_interfaces/i_messaging_service.dart';
 import '../../domain/services_interfaces/i_session_service.dart';

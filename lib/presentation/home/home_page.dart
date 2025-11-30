@@ -1,8 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../domain/entities/device.dart';
-import '../../domain/services_interfaces/i_discovery_service.dart';
+import '../../domain/entities/session_summary.dart';
 import 'home_controller.dart';
 
 class HomePage extends GetView<HomeController> {
@@ -23,26 +25,14 @@ class HomePage extends GetView<HomeController> {
             children: [
               ElevatedButton(
                 onPressed: () async {
-                  final name = await _askSessionName(context);
-                  if (name == null) {
-                    return;
-                  }
-                  const dummy = Device(
-                    id: 'local',
-                    name: 'Local Device',
-                    ip: '127.0.0.1',
-                    port: 51234,
-                    role: DeviceRole.admin,
-                    isLocal: true,
-                  );
-                  controller.createSession(name, dummy);
+                  await _handleCreateSession(context);
                 },
                 child: const Text('Create Session'),
               ),
               const SizedBox(height: 16),
               Expanded(
                 child: StreamBuilder<List<SessionSummary>>(
-                  stream: Get.find<IDiscoveryService>().sessions$,
+                  stream: controller.discoveredSessions$,
                   builder: (context, snapshot) {
                     final sessions = snapshot.data ?? const [];
                     if (sessions.isEmpty) {
@@ -69,6 +59,48 @@ class HomePage extends GetView<HomeController> {
           ),
         );
       }),
+    );
+  }
+
+  Future<void> _handleCreateSession(BuildContext context) async {
+    final name = await _askSessionName(context);
+    if (name == null) {
+      return;
+    }
+    final admin = await _buildLocalAdminDevice();
+    await controller.createSession(name, admin);
+  }
+
+  Future<Device> _buildLocalAdminDevice() async {
+    final hostname = Platform.localHostname.isEmpty
+        ? 'jamSync-${DateTime.now().millisecondsSinceEpoch}'
+        : Platform.localHostname;
+    var ip = InternetAddress.loopbackIPv4.address;
+    try {
+      final interfaces = await NetworkInterface.list(
+        includeLoopback: true,
+        type: InternetAddressType.IPv4,
+      );
+      final resolved = interfaces
+          .expand((iface) => iface.addresses)
+          .firstWhere(
+            (addr) => !addr.isLoopback && addr.type == InternetAddressType.IPv4,
+            orElse: () => interfaces.isNotEmpty && interfaces.first.addresses.isNotEmpty
+                ? interfaces.first.addresses.first
+                : InternetAddress.loopbackIPv4,
+          );
+      ip = resolved.address;
+    } catch (_) {
+      ip = InternetAddress.loopbackIPv4.address;
+    }
+    final idSeed = DateTime.now().microsecondsSinceEpoch;
+    return Device(
+      id: '$hostname-$idSeed',
+      name: hostname,
+      ip: ip,
+      port: 51234,
+      role: DeviceRole.admin,
+      isLocal: true,
     );
   }
 

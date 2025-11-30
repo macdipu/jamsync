@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../core/logging/app_logger.dart';
+import '../../domain/entities/session_summary.dart';
 import '../../domain/services_interfaces/i_discovery_service.dart';
 
 class UdpDiscoveryService implements IDiscoveryService {
@@ -52,7 +53,7 @@ class UdpDiscoveryService implements IDiscoveryService {
   Future<void> stopAnnouncing(String sessionId) async {
     if (_currentAnnouncement?.id == sessionId) {
       _currentAnnouncement = null;
-      await _announceTimer?.cancel();
+      _announceTimer?.cancel();
       _announceTimer = null;
     }
     _sessions.removeWhere((element) => element.id == sessionId);
@@ -115,7 +116,7 @@ class UdpDiscoveryService implements IDiscoveryService {
 
   @override
   Future<void> stopListening() async {
-    await _announceTimer?.cancel();
+    _announceTimer?.cancel();
     _announceTimer = null;
     _socket?.close();
     _socket = null;

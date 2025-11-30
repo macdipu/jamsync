@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 
 import '../core/logging/app_logger.dart';
 import '../domain/services_interfaces/i_discovery_service.dart';
+import '../domain/services_interfaces/i_device_service.dart';
 import '../domain/services_interfaces/i_messaging_service.dart';
 import '../domain/services_interfaces/i_playback_service.dart';
 import '../domain/services_interfaces/i_role_service.dart';
@@ -13,8 +14,9 @@ import '../infrastructure/network/udp_discovery_service.dart';
 import '../infrastructure/sync/sync_engine_impl.dart';
 import '../infrastructure/application/role_service_impl.dart';
 import '../infrastructure/application/session_service_impl.dart';
+import '../infrastructure/application/device_service_impl.dart';
 
-void configureDependencies() {
+Future<void> configureDependencies() async {
   if (Get.isRegistered<AppLogger>()) {
     return;
   }
@@ -43,4 +45,10 @@ void configureDependencies() {
     ),
     fenix: true,
   );
+  Get.lazyPut<IDeviceService>(
+    () => DeviceServiceImpl(logger: Get.find<AppLogger>()),
+    fenix: true,
+  );
+
+  await Get.find<IDiscoveryService>().startListening();
 }
