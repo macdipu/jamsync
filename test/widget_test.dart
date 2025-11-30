@@ -5,13 +5,27 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
 
 import 'package:jamsync/app/app.dart';
+import 'package:jamsync/app/di.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() async {
+    await configureDependencies(listenForDiscovery: false);
+  });
+
+  tearDownAll(() {
+    Get.reset();
+  });
+
   testWidgets('JamSync smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(const JamSyncApp());
+    await tester.pump();
     expect(find.text('jamSync'), findsOneWidget);
   });
 }

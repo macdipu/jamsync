@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 
+import '../../app/routes.dart';
 import '../../domain/entities/device.dart';
 import '../../domain/entities/session.dart';
 import '../../domain/services_interfaces/i_role_service.dart';
@@ -35,5 +36,21 @@ class SessionController extends GetxController {
     }
     final updated = await _roleService.assignSpeaker(session, device);
     attachSession(updated);
+  }
+
+  void openPlayer(Device device) {
+    final session = currentSession.value;
+    if (session == null) {
+      return;
+    }
+    Get.toNamed(Routes.player, arguments: session.copyWith(player: device));
+  }
+
+  void openSpeaker(Device device) {
+    final session = currentSession.value;
+    if (session == null) {
+      return;
+    }
+    Get.toNamed(Routes.speaker, arguments: session.copyWith(player: device));
   }
 }

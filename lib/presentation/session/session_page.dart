@@ -47,11 +47,17 @@ class SessionPage extends GetView<SessionController> {
                             controller.assignPlayer(member);
                           } else if (value == 'speaker') {
                             controller.assignSpeaker(member);
+                          } else if (value == 'view_player') {
+                            controller.openPlayer(member);
+                          } else if (value == 'view_speaker') {
+                            controller.openSpeaker(member);
                           }
                         },
                         itemBuilder: (_) => const [
                           PopupMenuItem(value: 'player', child: Text('Make Player')),
                           PopupMenuItem(value: 'speaker', child: Text('Make Speaker')),
+                          PopupMenuItem(value: 'view_player', child: Text('Open Player UI')),
+                          PopupMenuItem(value: 'view_speaker', child: Text('Open Speaker UI')),
                         ],
                       ),
                     );

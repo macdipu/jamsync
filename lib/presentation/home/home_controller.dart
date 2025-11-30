@@ -54,7 +54,22 @@ class HomeController extends GetxController {
     isLoading.value = true;
     try {
       await _sessionService.joinSession(summary);
-      Get.toNamed(Routes.session, arguments: summary);
+      final admin = Device(
+        id: summary.id,
+        name: summary.hostName,
+        ip: summary.ip,
+        port: summary.port,
+        role: DeviceRole.admin,
+      );
+      final session = Session(
+        id: summary.id,
+        name: summary.name,
+        admin: admin,
+        player: admin,
+        members: [admin],
+        queue: const [],
+      );
+      Get.toNamed(Routes.session, arguments: session);
     } finally {
       isLoading.value = false;
     }

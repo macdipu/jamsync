@@ -16,7 +16,7 @@ import '../infrastructure/application/role_service_impl.dart';
 import '../infrastructure/application/session_service_impl.dart';
 import '../infrastructure/application/device_service_impl.dart';
 
-Future<void> configureDependencies() async {
+Future<void> configureDependencies({bool listenForDiscovery = true}) async {
   if (Get.isRegistered<AppLogger>()) {
     return;
   }
@@ -50,5 +50,7 @@ Future<void> configureDependencies() async {
     fenix: true,
   );
 
-  await Get.find<IDiscoveryService>().startListening();
+  if (listenForDiscovery) {
+    await Get.find<IDiscoveryService>().startListening();
+  }
 }
