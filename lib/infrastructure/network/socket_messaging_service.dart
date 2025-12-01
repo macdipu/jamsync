@@ -64,11 +64,12 @@ class SocketMessagingService implements IMessagingService {
     if (client == null) {
       return;
     }
+    const payloadType = MessageType.joinRequest;
     final announcement = jsonEncode({
-      'type': MessageType.joinRequest.name,
+      'type': payloadType.name,
       'payload': {'announce': true},
     });
-    client.writeln(announcement);
+    await _safeWrite(client, announcement);
   }
 
   void _handleDisconnect() {
@@ -88,16 +89,13 @@ class SocketMessagingService implements IMessagingService {
 
   @override
   Future<void> send(ControlMessage message) async {
+    final payloadJson = jsonEncode(message.toJson());
     if (_client != null) {
       _logger?.info('Sending message ${message.type} to server');
-      await _safeWrite(_client!, jsonEncode(message.toJson()));
+      await _safeWrite(_client!, payloadJson);
       return;
     }
-    final payload = jsonEncode(message.toJson());
-    for (final peer in _connections) {
-      _logger?.info('Broadcasting message ${message.type} to ${peer.label}');
-      unawaited(_safeWrite(peer.socket, payload));
-    }
+    await _broadcastPayload(payloadJson);
   }
 
   void _handleIncoming(List<int> data, {StringBuffer? buffer, _PeerConnection? origin}) {
@@ -119,17 +117,28 @@ class SocketMessagingService implements IMessagingService {
         final json = jsonDecode(line) as Map<String, dynamic>;
         final message = ControlMessage.fromJson(json);
         _controller.add(message);
-        _broadcast(message, origin: origin);
+        unawaited(_broadcast(message, origin: origin));
       } catch (error, stackTrace) {
         _logger?.error('Invalid control message payload: $error', error, stackTrace);
       }
     }
   }
 
-  void _broadcast(ControlMessage message, {_PeerConnection? origin}) {
+  Future<void> _broadcast(ControlMessage message, {_PeerConnection? origin}) async {
     final payload = jsonEncode(message.toJson());
-    for (final peer in _connections.where((peer) => peer != origin)) {
-      unawaited(_safeWrite(peer.socket, payload));
+    await _broadcastPayload(payload, origin: origin);
+  }
+
+  Future<void> _broadcastPayload(String payload, {_PeerConnection? origin}) async {
+    final targets = List<_PeerConnection>.from(_connections);
+    for (final peer in targets) {
+      if (peer == origin) {
+        continue;
+      }
+      final ok = await _safeWrite(peer.socket, payload);
+      if (!ok) {
+        _removeConnection(peer, reason: 'write failure');
+      }
     }
   }
 
@@ -145,16 +154,8 @@ class SocketMessagingService implements IMessagingService {
       _logger?.info('Client connected: ${peer.label}');
       client.listen(
         (data) => _handleIncoming(data, buffer: peer.buffer, origin: peer),
-        onDone: () {
-          _connections.remove(peer);
-          _logger?.info('Client disconnected: ${peer.label}');
-          peer.dispose();
-        },
-        onError: (error, stackTrace) {
-          _connections.remove(peer);
-          _logger?.error('Client socket error (${peer.label}): $error', error, stackTrace);
-          peer.dispose();
-        },
+        onDone: () => _removeConnection(peer, reason: 'client closed'),
+        onError: (error, stackTrace) => _removeConnection(peer, reason: '$error', stackTrace: stackTrace),
         cancelOnError: true,
       );
     });
@@ -172,15 +173,22 @@ class SocketMessagingService implements IMessagingService {
     _logger?.info('Messaging hub stopped');
   }
 
-  Future<void> _safeWrite(Socket socket, String payload) async {
+  Future<bool> _safeWrite(Socket socket, String payload) async {
     try {
-      socket.write(payload);
-      if (!payload.endsWith('\n')) {
-        socket.write('\n');
-      }
+      final framed = payload.endsWith('\n') ? payload : '$payload\n';
+      socket.add(utf8.encode(framed));
       await socket.flush();
+      return true;
     } on Object catch (error, stackTrace) {
       _logger?.error('Failed to write to socket: $error', error, stackTrace);
+      return false;
     }
+  }
+
+  void _removeConnection(_PeerConnection peer, {String? reason, StackTrace? stackTrace}) {
+    if (_connections.remove(peer)) {
+      _logger?.error('Client disconnected: ${peer.label}${reason != null ? ' ($reason)' : ''}', stackTrace);
+    }
+    peer.dispose();
   }
 }
