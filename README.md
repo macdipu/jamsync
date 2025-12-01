@@ -34,6 +34,15 @@ flutter run -d device_id --target=lib/main.dart
 3. Other devices join via the discovery list; Speakers display drift/latency metrics to help you position audio gear.
 4. If a connection drops, jamSync auto-retries and shows a retry button banner.
 
+## Media Library & Background Playback
+
+> _First run_: Android will prompt for **Media Audio** (or legacy Storage) access and **notifications**. iOS prompts for **Media & Apple Music** access. Granting these is required for auto-scanning MP3s and showing the foreground notification that keeps playback alive.
+
+- Admin/Player devices automatically scan the on-device library when the Player UI opens. Tap **Scan MP3s** on the session page or **Scan Library** in the Player view to rescan at any time.
+- jamSync reads MediaStore (Android) or the app documents directory (iOS/macOS) to build the queue. Drop tracks into those locations and re-scan to refresh.
+- Background playback uses the `just_audio_background`/`audio_service` stack. Keep the notification pinned (Android) or enable the Background Audio capability (iOS) so sync ticks continue when the app is minimized.
+- Speakers do not need media permissions—they stream position updates from the Player. Only the designated Player device requires local MP3 access.
+
 ## Troubleshooting
 
 - Use the reconnect button on the session screen if Speakers lose connection.
