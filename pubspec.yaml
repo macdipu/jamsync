@@ -39,7 +39,7 @@ dependencies:
   multicast_dns: ^0.3.0
   path_provider: ^2.1.2
   permission_handler: ^11.1.0
-  on_audio_query: ^2.9.0
+  on_audio_query_pluse: ^3.0.5
   audio_service: ^0.18.18
   just_audio_background: ^0.0.1-beta.17
 

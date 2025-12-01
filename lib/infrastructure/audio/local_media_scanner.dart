@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:on_audio_query/on_audio_query.dart';
+import 'package:on_audio_query_pluse/on_audio_query.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../domain/services_interfaces/i_media_scanner_service.dart';
