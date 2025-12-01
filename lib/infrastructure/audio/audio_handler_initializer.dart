@@ -5,8 +5,12 @@ import 'jam_audio_handler.dart';
 
 class AudioHandlerInitializer {
   AudioHandlerInitializer._();
-  static Future<void> ensureInitialized() async {
+  static Future<void> ensureInitialized({bool isTest = false}) async {
     if (Get.isRegistered<JamAudioHandler>()) {
+      return;
+    }
+    if (isTest) {
+      Get.put<JamAudioHandler>(JamAudioHandler(), permanent: true);
       return;
     }
     final handler = await AudioService.init(

@@ -33,7 +33,7 @@ Future<void> configureDependencies({bool listenForDiscovery = true}) async {
   }
 
   Get.put<AppLogger>(AppLogger());
-  await AudioHandlerInitializer.ensureInitialized();
+  await AudioHandlerInitializer.ensureInitialized(isTest: Platform.environment.containsKey('FLUTTER_TEST_ENV'));
 
   Get.lazyPut<IPlaybackService>(
     () => JustAudioPlaybackService(handler: Get.find<JamAudioHandler>()),
