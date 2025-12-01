@@ -9,6 +9,7 @@ enum MessageType {
   syncTick,
   ping,
   pong,
+  stateRequest,
   text,
 }
 

@@ -46,6 +46,7 @@ class SpeakerController extends GetxController {
     _subscribeToMessages(session.id);
     _startPinging();
     _loadInitialTrack(session);
+    _requestStateSnapshot();
   }
 
   Future<void> _loadInitialTrack(Session session) async {
@@ -150,6 +151,20 @@ class SpeakerController extends GetxController {
     final playerTime = payload['playerTime'] as int? ?? 0;
     latencyMs.value = (playerTime - clientTime).abs();
     driftMs.value = _syncEngine.lastDriftMs;
+  }
+
+  Future<void> _requestStateSnapshot() async {
+    final session = currentSession.value;
+    if (session == null) {
+      return;
+    }
+    final message = ControlMessage(
+      type: MessageType.stateRequest,
+      payload: {
+        'sessionId': session.id,
+      },
+    );
+    await _messagingService.send(message);
   }
 
   Future<void> _handlePlaybackCommand(Map<String, dynamic> payload) async {

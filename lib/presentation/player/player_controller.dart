@@ -245,10 +245,51 @@ class PlayerController extends GetxController {
         case MessageType.ping:
           _handlePing(message.payload);
           break;
+        case MessageType.stateRequest:
+          _handleStateRequest(message.payload);
+          break;
         default:
           break;
       }
     });
+  }
+
+  Future<void> _handleStateRequest(Map<String, dynamic> payload) async {
+    final session = currentSession.value;
+    final track = selectedTrack.value;
+    if (session == null || track == null) {
+      return;
+    }
+    final position = await _playbackService.getPosition();
+    final commands = [
+      ControlMessage(
+        type: MessageType.queueUpdate,
+        payload: {
+          'sessionId': session.id,
+          'queue': queue.map((t) => t.toJson()).toList(),
+        },
+      ),
+      ControlMessage(
+        type: MessageType.playbackCommand,
+        payload: {
+          'sessionId': session.id,
+          'action': 'load',
+          'track': track.toJson(),
+          'positionMs': position.inMilliseconds,
+        },
+      ),
+      ControlMessage(
+        type: MessageType.playbackCommand,
+        payload: {
+          'sessionId': session.id,
+          'action': isPlaying.value ? 'play' : 'pause',
+          'positionMs': position.inMilliseconds,
+        },
+      ),
+    ];
+    for (final command in commands) {
+      await _messagingService.send(command);
+    }
   }
 
   Future<void> _handlePing(Map<String, dynamic> payload) async {
