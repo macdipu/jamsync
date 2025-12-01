@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../domain/entities/device.dart';
 import '../../domain/entities/session.dart';
 import '../../domain/services_interfaces/i_messaging_service.dart';
 import 'session_controller.dart';
@@ -75,7 +76,7 @@ class SessionPage extends GetView<SessionController> {
             }),
             ListTile(
               title: Text(current.name),
-              subtitle: Text('Admin: ${current.admin.name}'),
+              subtitle: Text('Admin: ${current.admin.name} • ${current.admin.ip}:${current.admin.port}'),
               trailing: FilledButton.icon(
                 onPressed: controller.scanLocalLibrary,
                 icon: const Icon(Icons.library_music),
@@ -93,9 +94,29 @@ class SessionPage extends GetView<SessionController> {
                   itemCount: members.length,
                   itemBuilder: (context, index) {
                     final member = members[index];
+                    final isLocal = member.isLocal;
+                    final roleLabel = member.role.name.toUpperCase();
+                    final subtitle = '${member.ip}:${member.port} • $roleLabel';
                     return ListTile(
-                      title: Text(member.name),
-                      subtitle: Text(member.role.name),
+                      leading: CircleAvatar(
+                        backgroundColor: _roleColor(member.role, context),
+                        child: Icon(_roleIcon(member.role), color: Colors.white),
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(child: Text(member.name)),
+                          if (isLocal)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: Chip(
+                                label: const Text('You'),
+                                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                        ],
+                      ),
+                      subtitle: Text(subtitle),
                       trailing: PopupMenuButton<String>(
                         onSelected: (value) {
                           if (value == 'player') {
@@ -147,6 +168,31 @@ class _SessionHero extends StatelessWidget {
               Text(session.name, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 4),
               Text('Admin: ${session.admin.name}', style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  RoleBadge(
+                    label: 'Host / Admin',
+                    value: session.admin.name,
+                    icon: Icons.verified_user,
+                    color: Colors.deepPurple,
+                  ),
+                  RoleBadge(
+                    label: 'Player',
+                    value: session.player?.name ?? 'Not assigned',
+                    icon: Icons.play_circle_fill,
+                    color: Colors.teal,
+                  ),
+                  RoleBadge(
+                    label: 'Speakers',
+                    value: session.members.where((m) => m.role == DeviceRole.speaker).length.toString(),
+                    icon: Icons.speaker_group,
+                    color: Colors.orange,
+                  ),
+                ],
+              ),
               const Divider(height: 24),
               Row(
                 children: [
@@ -173,6 +219,70 @@ class _SessionHero extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+Color _roleColor(DeviceRole role, BuildContext context) {
+  switch (role) {
+    case DeviceRole.admin:
+      return Colors.deepPurple;
+    case DeviceRole.player:
+      return Colors.teal;
+    case DeviceRole.speaker:
+      return Colors.orange;
+  }
+}
+
+IconData _roleIcon(DeviceRole role) {
+  switch (role) {
+    case DeviceRole.admin:
+      return Icons.verified_user;
+    case DeviceRole.player:
+      return Icons.play_arrow;
+    case DeviceRole.speaker:
+      return Icons.speaker_phone;
+  }
+}
+
+class RoleBadge extends StatelessWidget {
+  const RoleBadge({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    super.key,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label, style: Theme.of(context).textTheme.labelSmall),
+              Text(value, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: color)),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 
 /// Log levels
@@ -65,19 +64,19 @@ class AppLogger {
 
   void _printToConsole(LogLevel level, String line) {
     if (!_useColors) {
-      print(line);
+      debugPrint(line);
       return;
     }
 
     switch (level) {
       case LogLevel.info:
-        print("$_blue$line$_reset");
+        debugPrint("$_blue$line$_reset");
         break;
       case LogLevel.warn:
-        print("$_yellow$line$_reset");
+        debugPrint("$_yellow$line$_reset");
         break;
       case LogLevel.error:
-        print("$_red$line$_reset");
+        debugPrint("$_red$line$_reset");
         break;
     }
   }
@@ -86,9 +85,8 @@ class AppLogger {
     try {
       await _logFile.writeAsString('$message\n', mode: FileMode.append);
     } catch (e, st) {
-      // Fallback logging if file write fails
-      // ignore: avoid_print
-      print("LOGGER FILE WRITE ERROR: $e\n$st");
+      debugPrint('Failed to persist log: $e\n$st');
+      debugPrint(message);
     }
   }
 }
