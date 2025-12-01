@@ -16,6 +16,7 @@ import '../domain/services_interfaces/i_local_storage_service.dart';
 import '../infrastructure/audio/just_audio_playback_service.dart';
 import '../infrastructure/audio/local_media_scanner.dart';
 import '../infrastructure/audio/jam_audio_handler.dart';
+import '../infrastructure/audio/audio_handler_initializer.dart';
 import '../infrastructure/network/socket_messaging_service.dart';
 import '../infrastructure/network/udp_discovery_service.dart';
 import '../infrastructure/sync/sync_engine_impl.dart';
@@ -30,6 +31,7 @@ Future<void> configureDependencies({bool listenForDiscovery = true}) async {
   }
 
   Get.put<AppLogger>(AppLogger());
+  await AudioHandlerInitializer.ensureInitialized();
 
   Get.lazyPut<IPlaybackService>(
     () => JustAudioPlaybackService(handler: Get.find<JamAudioHandler>()),

@@ -7,6 +7,7 @@ import '../../domain/entities/track.dart';
 class JamAudioHandler extends BaseAudioHandler with SeekHandler {
   JamAudioHandler() {
     _player.playbackEventStream.listen(_broadcastState);
+    _player.playerStateStream.listen(_onPlayerStateChanged);
   }
 
   final AudioPlayer _player = AudioPlayer();
@@ -25,6 +26,8 @@ class JamAudioHandler extends BaseAudioHandler with SeekHandler {
         tag: item,
       ),
     );
+    playbackState.add(playbackState.value.copyWith(processingState: AudioProcessingState.ready));
+    _player.play();
   }
 
   Future<Duration> position() async => _player.position;
@@ -87,6 +90,14 @@ class JamAudioHandler extends BaseAudioHandler with SeekHandler {
         updateTime: DateTime.now(),
       ),
     );
+  }
+
+  void _onPlayerStateChanged(PlayerState state) {
+    if (state.processingState == ProcessingState.completed) {
+      playbackState.add(
+        playbackState.value.copyWith(playing: false, processingState: AudioProcessingState.completed),
+      );
+    }
   }
 
   AudioProcessingState _mapProcessingState(ProcessingState state) {
