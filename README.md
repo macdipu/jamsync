@@ -4,7 +4,7 @@ jamSync keeps multiple devices on the same LAN or hotspot in lockstep audio play
 
 ## Requirements
 
-- Flutter 3.24+
+- Flutter 3.38.3+
 - Devices on the same Wi-Fi network or manually created hotspot (jamSync does not create a hotspot)
 
 ## Quick Start
