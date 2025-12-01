@@ -57,16 +57,20 @@ class SyncEngineImpl implements ISyncEngine {
       _lastDriftMs = drift.inMilliseconds.toDouble();
       final driftMs = _lastDriftMs.abs();
       _logger?.info('Sync tick drift: ${_lastDriftMs.toStringAsFixed(2)}ms');
-      if (driftMs < 30) {
-        return;
+
+      if (expectedPosition > Duration.zero) {
+        if (driftMs < 30) {
+          playback.play();
+          return;
+        }
+        if (driftMs <= 150) {
+          _logger?.info('Minor drift detected; nudging playback');
+          playback.play();
+          return;
+        }
+        _logger?.warn('Large drift detected (${driftMs}ms); seeking to aligned position');
+        playback.seek(expectedPosition).then((_) => playback.play());
       }
-      if (driftMs <= 150) {
-        _logger?.info('Minor drift detected; nudging playback');
-        playback.play();
-        return;
-      }
-      _logger?.warn('Large drift detected (${driftMs}ms); seeking to aligned position');
-      playback.seek(expectedPosition);
     });
   }
 

@@ -121,6 +121,7 @@ class SpeakerController extends GetxController {
       sequence: payload['sequence'] as int,
     );
     _syncEngine.onSyncTick(packet);
+    driftMs.value = _syncEngine.lastDriftMs;
     driftHistory.add(driftMs.value);
     if (driftHistory.length > 20) {
       driftHistory.removeAt(0);

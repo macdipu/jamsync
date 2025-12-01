@@ -18,15 +18,19 @@ class JamAudioHandler extends BaseAudioHandler with SeekHandler {
     await session.configure(const AudioSessionConfiguration.music());
     final item = _toMediaItem(track);
     _currentMediaItem = item;
-    queue.add([item]);
     mediaItem.add(item);
+    queue.add([item]);
+
     await _player.setAudioSource(
       AudioSource.uri(
         track.source,
         tag: item,
       ),
     );
-    playbackState.add(playbackState.value.copyWith(processingState: AudioProcessingState.ready));
+
+    playbackState.add(playbackState.value.copyWith(
+      processingState: AudioProcessingState.ready,
+    ));
   }
 
   Future<Duration> position() async => _player.position;
@@ -34,10 +38,14 @@ class JamAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<Duration?> duration() async => _player.duration;
 
   @override
-  Future<void> play() => _player.play();
+  Future<void> play() async {
+    await _player.play();
+  }
 
   @override
-  Future<void> pause() => _player.pause();
+  Future<void> pause() async {
+    await _player.pause();
+  }
 
   @override
   Future<void> stop() => _player.stop();
