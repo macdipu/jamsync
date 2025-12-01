@@ -23,13 +23,13 @@ class SessionPage extends GetView<SessionController> {
         if (current == null) {
           return const Center(child: Text('No session selected.'));
         }
-        final mediaQuery = MediaQuery.of(context);
         return LayoutBuilder(
           builder: (context, constraints) {
             final content = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _SessionHero(session: current),
+                const SizedBox(height: 12),
                 Obx(() {
                   final state = controller.connectionState.value;
                   if (state == MessagingConnectionState.connected) {
@@ -87,11 +87,14 @@ class SessionPage extends GetView<SessionController> {
                     label: const Text('Scan MP3s'),
                   ),
                 ),
+                const SizedBox(height: 12),
                 _NowPlayingCard(queue: controller.queue, nowPlayingTitle: controller.nowPlayingTitle, nowPlayingArtist: controller.nowPlayingArtist),
+                const SizedBox(height: 24),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Text('Members', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
+                const SizedBox(height: 12),
                 Obx(() {
                   final members = controller.members;
                   return ListView.builder(
@@ -168,15 +171,13 @@ class SessionPage extends GetView<SessionController> {
                 }),
               ],
             );
-            final contentHeight = _estimateHeight(content, constraints.maxWidth)
-                ?? mediaQuery.size.height;
-            if (contentHeight > constraints.maxHeight) {
-              return SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 24),
+            return SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: content,
-              );
-            }
-            return content;
+              ),
+            );
           },
         );
       }),
@@ -376,23 +377,4 @@ class RoleBadge extends StatelessWidget {
   }
 }
 
-double? _estimateHeight(Widget widget, double width) {
-  // This function estimates the height of a widget given its width.
-  // It's a simplified version and might not be accurate for all widgets.
-  // You can improve this by using a GlobalKey and calculating the height
-  // after the widget is built, but that requires a more complex implementation.
-
-  // For now, let's return a fixed height for some known widgets.
-  if (widget is Column) {
-    double height = 0;
-    for (var child in widget.children) {
-      if (child is SizedBox) {
-        height += child.height ?? 0;
-      } else {
-        height += 48; // Default height for other widgets
-      }
-    }
-    return height;
-  }
-  return null;
-}
+// Deprecated height estimator removed in favor of scrollable layout.
