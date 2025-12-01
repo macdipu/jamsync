@@ -81,10 +81,25 @@ class SessionPage extends GetView<SessionController> {
                 ListTile(
                   title: Text(current.name),
                   subtitle: Text('Admin: ${current.admin.name} • ${current.admin.ip}:${current.admin.port}'),
-                  trailing: FilledButton.icon(
-                    onPressed: controller.scanLocalLibrary,
-                    icon: const Icon(Icons.library_music),
-                    label: const Text('Scan MP3s'),
+                  trailing: Wrap(
+                    spacing: 8,
+                    children: [
+                      IconButton(
+                        tooltip: 'View Player',
+                        onPressed: () => controller.openPlayer(current.admin),
+                        icon: const Icon(Icons.play_circle_fill),
+                      ),
+                      IconButton(
+                        tooltip: 'View Speaker',
+                        onPressed: () => controller.openSpeaker(current.admin),
+                        icon: const Icon(Icons.speaker),
+                      ),
+                      FilledButton.icon(
+                        onPressed: controller.scanLocalLibrary,
+                        icon: const Icon(Icons.library_music),
+                        label: const Text('Scan MP3s'),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),

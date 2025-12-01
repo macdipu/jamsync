@@ -32,6 +32,7 @@ class SessionController extends GetxController {
   final lastError = RxnString();
   final nowPlayingTitle = ''.obs;
   final nowPlayingArtist = ''.obs;
+  final currentRole = Rxn<DeviceRole>();
   Timer? _autoRetryTimer;
   MessagingConnectionState? _previousState;
 
@@ -61,6 +62,15 @@ class SessionController extends GetxController {
     });
   }
 
+  void clearSession() {
+    currentSession.value = null;
+    members.clear();
+    queue.clear();
+    nowPlayingTitle.value = 'No track queued';
+    nowPlayingArtist.value = '';
+    currentRole.value = null;
+  }
+
   Future<void> _restartAnnouncement() async {
     final session = currentSession.value;
     if (session == null || !session.admin.isLocal) {
@@ -81,6 +91,9 @@ class SessionController extends GetxController {
     members.assignAll(session.members);
     queue.assignAll(session.queue);
     _updateNowPlaying(session);
+    currentRole.value = session.admin.isLocal
+        ? DeviceRole.admin
+        : session.members.firstWhereOrNull((member) => member.isLocal)?.role;
   }
 
   void _updateNowPlaying(Session session) {
