@@ -35,12 +35,18 @@ Future<void> configureDependencies({bool listenForDiscovery = true}) async {
     () => JustAudioPlaybackService(handler: Get.find<JamAudioHandler>()),
     fenix: true,
   );
-  Get.lazyPut<IMessagingService>(SocketMessagingService.new, fenix: true);
+  Get.lazyPut<IMessagingService>(
+    () => SocketMessagingService(logger: Get.find<AppLogger>()),
+    fenix: true,
+  );
   Get.lazyPut<IDiscoveryService>(
     () => UdpDiscoveryService(logger: Get.find<AppLogger>()),
     fenix: true,
   );
-  Get.lazyPut<ISyncEngine>(SyncEngineImpl.new, fenix: true);
+  Get.lazyPut<ISyncEngine>(
+    () => SyncEngineImpl(logger: Get.find<AppLogger>()),
+    fenix: true,
+  );
   Get.lazyPut<ISessionService>(
     () => SessionServiceImpl(
       messagingService: Get.find<IMessagingService>(),
@@ -60,9 +66,12 @@ Future<void> configureDependencies({bool listenForDiscovery = true}) async {
     () => DeviceServiceImpl(logger: Get.find<AppLogger>()),
     fenix: true,
   );
-  Get.lazyPut<ILocalStorageService>(LocalSettingsStorage.new, fenix: true);
+  Get.lazyPut<ILocalStorageService>(
+    () => LocalSettingsStorage(logger: Get.find<AppLogger>()),
+    fenix: true,
+  );
   Get.lazyPut<IMediaScannerService>(
-    () => LocalMediaScanner(OnAudioQuery()),
+    () => LocalMediaScanner(OnAudioQuery(), logger: Get.find<AppLogger>()),
     fenix: true,
   );
   Get.lazyPut<JamAudioHandler>(JamAudioHandler.new, fenix: true);

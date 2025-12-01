@@ -2,16 +2,20 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../../core/logging/app_logger.dart';
 import '../../domain/entities/control_message.dart';
 import '../../domain/services_interfaces/i_messaging_service.dart';
 
 class SocketMessagingService implements IMessagingService {
+  SocketMessagingService({AppLogger? logger}) : _logger = logger;
+
   final _controller = StreamController<ControlMessage>.broadcast();
   final _statusController = StreamController<MessagingConnectionState>.broadcast();
   ServerSocket? _server;
   Socket? _client;
   final _connections = <Socket>[];
   static const _connectTimeout = Duration(seconds: 5);
+  final AppLogger? _logger;
 
   @override
   Stream<ControlMessage> get messages$ => _controller.stream;
@@ -22,15 +26,19 @@ class SocketMessagingService implements IMessagingService {
   Future<void> connect({required String host, required int port}) async {
     await disconnect();
     _statusController.add(MessagingConnectionState.connecting);
+    _logger?.info('Connecting to $host:$port');
     try {
       _client = await Socket.connect(host, port).timeout(_connectTimeout);
       _statusController.add(MessagingConnectionState.connected);
+      _logger?.info('Connected to $host:$port');
       _client!.listen(_handleIncoming, onDone: _handleDisconnect, onError: (_) => _handleDisconnect());
     } on SocketException catch (error) {
       _handleDisconnect();
+      _logger?.error('SocketException while connecting to $host:$port: ${error.message}', error);
       throw SocketException('Unable to connect to $host:$port (${error.message})');
     } on TimeoutException {
       _handleDisconnect();
+      _logger?.warn('Connection to $host:$port timed out');
       throw SocketException('Connection to $host:$port timed out');
     }
   }
@@ -38,6 +46,7 @@ class SocketMessagingService implements IMessagingService {
   void _handleDisconnect() {
     _client = null;
     _statusController.add(MessagingConnectionState.disconnected);
+    _logger?.warn('Socket disconnected');
   }
 
   @override
@@ -45,16 +54,19 @@ class SocketMessagingService implements IMessagingService {
     await _client?.close();
     _client = null;
     _statusController.add(MessagingConnectionState.disconnected);
+    _logger?.info('Socket closed');
   }
 
   @override
   Future<void> send(ControlMessage message) async {
     if (_client != null) {
+      _logger?.info('Sending message ${message.type} to server');
       _client!.writeln(jsonEncode(message.toJson()));
       return;
     }
     final payload = jsonEncode(message.toJson());
     for (final socket in _connections) {
+      _logger?.info('Broadcasting message ${message.type} to ${socket.remoteAddress.address}:${socket.remotePort}');
       socket.writeln(payload);
     }
   }
@@ -68,8 +80,8 @@ class SocketMessagingService implements IMessagingService {
         final message = ControlMessage.fromJson(json);
         _controller.add(message);
         _broadcast(message, origin: origin);
-      } catch (_) {
-        // swallow invalid payloads for now
+      } catch (error, stackTrace) {
+        _logger?.error('Invalid control message payload: $error', error, stackTrace);
       }
     }
   }
@@ -86,12 +98,20 @@ class SocketMessagingService implements IMessagingService {
     await stopHub();
     _server = await ServerSocket.bind(InternetAddress.anyIPv4, port);
     _statusController.add(MessagingConnectionState.connected);
+    _logger?.info('Messaging hub started on port $port');
     _server!.listen((client) {
       _connections.add(client);
+      _logger?.info('Client connected: ${client.remoteAddress.address}:${client.remotePort}');
       client.listen(
         (data) => _handleIncoming(data, origin: client),
-        onDone: () => _connections.remove(client),
-        onError: (_) => _connections.remove(client),
+        onDone: () {
+          _connections.remove(client);
+          _logger?.info('Client disconnected: ${client.remoteAddress.address}:${client.remotePort}');
+        },
+        onError: (error, stackTrace) {
+          _connections.remove(client);
+          _logger?.error('Client socket error: $error', error, stackTrace);
+        },
       );
     });
   }
@@ -105,5 +125,6 @@ class SocketMessagingService implements IMessagingService {
     await _server?.close();
     _server = null;
     _statusController.add(MessagingConnectionState.disconnected);
+    _logger?.info('Messaging hub stopped');
   }
 }
