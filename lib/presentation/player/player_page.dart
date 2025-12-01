@@ -20,6 +20,7 @@ class PlayerPage extends GetView<PlayerController> {
       body: Obx(() {
         final track = controller.selectedTrack.value;
         final queue = controller.queue;
+        final scanning = controller.isScanning.value;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -61,6 +62,8 @@ class PlayerPage extends GetView<PlayerController> {
                 padding: EdgeInsets.all(16),
                 child: Text('Add a track to get started'),
               ),
+            if (scanning)
+              const LinearProgressIndicator(minHeight: 2),
             const Divider(),
             Expanded(
               child: Obx(() {
@@ -86,14 +89,28 @@ class PlayerPage extends GetView<PlayerController> {
           ],
         );
       }),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final track = await _showAddTrackDialog(context);
-          if (track != null) {
-            controller.addTrack(track);
-          }
-        },
-        child: const Icon(Icons.add),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'scan',
+            onPressed: controller.scanLocalLibrary,
+            icon: Obx(() => controller.isScanning.value
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.library_music)),
+            label: const Text('Scan Library'),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton(
+            onPressed: () async {
+              final track = await _showAddTrackDialog(context);
+              if (track != null) {
+                controller.addTrack(track);
+              }
+            },
+            child: const Icon(Icons.add),
+          ),
+        ],
       ),
     );
   }

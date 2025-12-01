@@ -76,6 +76,11 @@ class SessionPage extends GetView<SessionController> {
             ListTile(
               title: Text(current.name),
               subtitle: Text('Admin: ${current.admin.name}'),
+              trailing: FilledButton.icon(
+                onPressed: controller.scanLocalLibrary,
+                icon: const Icon(Icons.library_music),
+                label: const Text('Scan MP3s'),
+              ),
             ),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),

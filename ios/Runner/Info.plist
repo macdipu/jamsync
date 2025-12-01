@@ -45,5 +45,12 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>fetch</string>
+	</array>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>jamSync needs access to your media library to add tracks to the queue.</string>
 </dict>
 </plist>

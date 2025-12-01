@@ -10,16 +10,20 @@ import '../../domain/entities/sync_packet.dart';
 import '../../domain/entities/track.dart';
 import '../../domain/services_interfaces/i_messaging_service.dart';
 import '../../domain/services_interfaces/i_playback_service.dart';
+import '../../domain/services_interfaces/i_media_scanner_service.dart';
 
 class PlayerController extends GetxController {
   PlayerController({
     required IPlaybackService playbackService,
     required IMessagingService messagingService,
+    IMediaScannerService? mediaScannerService,
   })  : _playbackService = playbackService,
-        _messagingService = messagingService;
+        _messagingService = messagingService,
+        _mediaScannerService = mediaScannerService ?? Get.find<IMediaScannerService>();
 
   final IPlaybackService _playbackService;
   final IMessagingService _messagingService;
+  final IMediaScannerService _mediaScannerService;
 
   final currentSession = Rxn<Session>();
   final queue = <Track>[].obs;
@@ -27,6 +31,7 @@ class PlayerController extends GetxController {
   final playbackPosition = Duration.zero.obs;
   final isPlaying = false.obs;
   final errorMessage = RxnString();
+  final isScanning = false.obs;
 
   StreamSubscription<PlaybackState>? _playbackSubscription;
   StreamSubscription<ControlMessage>? _messageSubscription;
@@ -50,6 +55,35 @@ class PlayerController extends GetxController {
     _startPositionPolling();
     _subscribeToMessages(session.id);
     _startSyncTicks();
+    unawaited(scanLocalLibrary());
+  }
+
+  Future<void> scanLocalLibrary() async {
+    if (isScanning.value) {
+      return;
+    }
+    isScanning.value = true;
+    try {
+      final localTracks = await _mediaScannerService.scanLibrary();
+      for (final local in localTracks) {
+        final track = Track(
+          id: local.id,
+          title: local.title,
+          artist: local.artist,
+          source: local.uri,
+          duration: local.duration,
+        );
+        if (!queue.any((existing) => existing.id == track.id)) {
+          queue.add(track);
+        }
+      }
+      if (queue.isNotEmpty && selectedTrack.value == null) {
+        await loadTrack(queue.first);
+      }
+      await _broadcastQueueSafely();
+    } finally {
+      isScanning.value = false;
+    }
   }
 
   Future<void> addTrack(Track track) async {

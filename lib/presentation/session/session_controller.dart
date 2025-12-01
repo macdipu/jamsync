@@ -8,6 +8,7 @@ import '../../domain/entities/session.dart';
 import '../../domain/services_interfaces/i_messaging_service.dart';
 import '../../domain/services_interfaces/i_role_service.dart';
 import '../../domain/services_interfaces/i_session_service.dart';
+import '../player/player_controller.dart';
 
 class SessionController extends GetxController {
   SessionController({
@@ -145,6 +146,11 @@ class SessionController extends GetxController {
     }
     final updated = await _roleService.assignSpeaker(session, device);
     attachSession(updated);
+  }
+
+  Future<void> scanLocalLibrary() async {
+    final player = Get.isRegistered<PlayerController>() ? Get.find<PlayerController>() : null;
+    await player?.scanLocalLibrary();
   }
 
   void autoOpenSpeaker(Device device) => _navigateToRole(device);
