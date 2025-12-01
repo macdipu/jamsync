@@ -22,75 +22,78 @@ class SessionPage extends GetView<SessionController> {
         if (current == null) {
           return const Center(child: Text('No session selected.'));
         }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _SessionHero(session: current),
-            Obx(() {
-              final state = controller.connectionState.value;
-              if (state == MessagingConnectionState.connected) {
-                return const SizedBox.shrink();
-              }
-              return Container(
-                width: double.infinity,
-                color: Colors.amber.shade100,
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.wifi_off, size: 18),
-                        const SizedBox(width: 8),
-                        Text('Connection: ${state.name}'),
-                        const Spacer(),
-                        Obx(() {
-                          return ElevatedButton.icon(
-                            onPressed: controller.reconnecting.value
-                                ? null
-                                : () => controller.attemptReconnect(showToast: true),
-                            icon: controller.reconnecting.value
-                                ? const SizedBox(
-                                    width: 14,
-                                    height: 14,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : const Icon(Icons.refresh, size: 16),
-                            label: Text(controller.reconnecting.value ? 'Retrying...' : 'Retry'),
-                          );
-                        }),
-                      ],
-                    ),
-                    Obx(() {
-                      final error = controller.lastError.value;
-                      return error == null
-                          ? const SizedBox.shrink()
-                          : Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(error, style: const TextStyle(color: Colors.red)),
+        return SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SessionHero(session: current),
+              Obx(() {
+                final state = controller.connectionState.value;
+                if (state == MessagingConnectionState.connected) {
+                  return const SizedBox.shrink();
+                }
+                return Container(
+                  width: double.infinity,
+                  color: Colors.amber.shade100,
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.wifi_off, size: 18),
+                          const SizedBox(width: 8),
+                          Text('Connection: ${state.name}'),
+                          const Spacer(),
+                          Obx(() {
+                            return ElevatedButton.icon(
+                              onPressed: controller.reconnecting.value
+                                  ? null
+                                  : () => controller.attemptReconnect(showToast: true),
+                              icon: controller.reconnecting.value
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.refresh, size: 16),
+                              label: Text(controller.reconnecting.value ? 'Retrying...' : 'Retry'),
                             );
-                    }),
-                  ],
+                          }),
+                        ],
+                      ),
+                      Obx(() {
+                        final error = controller.lastError.value;
+                        return error == null
+                            ? const SizedBox.shrink()
+                            : Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Text(error, style: const TextStyle(color: Colors.red)),
+                              );
+                      }),
+                    ],
+                  ),
+                );
+              }),
+              ListTile(
+                title: Text(current.name),
+                subtitle: Text('Admin: ${current.admin.name} • ${current.admin.ip}:${current.admin.port}'),
+                trailing: FilledButton.icon(
+                  onPressed: controller.scanLocalLibrary,
+                  icon: const Icon(Icons.library_music),
+                  label: const Text('Scan MP3s'),
                 ),
-              );
-            }),
-            ListTile(
-              title: Text(current.name),
-              subtitle: Text('Admin: ${current.admin.name} • ${current.admin.ip}:${current.admin.port}'),
-              trailing: FilledButton.icon(
-                onPressed: controller.scanLocalLibrary,
-                icon: const Icon(Icons.library_music),
-                label: const Text('Scan MP3s'),
               ),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text('Members', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-            Expanded(
-              child: Obx(() {
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text('Members', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              Obx(() {
                 final members = controller.members;
                 return ListView.builder(
+                  physics: const NeverScrollableScrollPhysics(),
+                  shrinkWrap: true,
                   itemCount: members.length,
                   itemBuilder: (context, index) {
                     final member = members[index];
@@ -160,8 +163,8 @@ class SessionPage extends GetView<SessionController> {
                   },
                 );
               }),
-            ),
-          ],
+            ],
+          ),
         );
       }),
     );
