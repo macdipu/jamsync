@@ -114,6 +114,7 @@ class PlayerController extends GetxController {
         'positionMs': 0,
       },
     );
+    isPlaying.value = false;
   }
 
   Future<void> play() async {

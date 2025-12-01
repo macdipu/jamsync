@@ -32,6 +32,7 @@ class SocketMessagingService implements IMessagingService {
       _statusController.add(MessagingConnectionState.connected);
       _logger?.info('Connected to $host:$port');
       _client!.listen(_handleIncoming, onDone: _handleDisconnect, onError: (_) => _handleDisconnect());
+      await _announcePresence();
     } on SocketException catch (error) {
       _handleDisconnect();
       _logger?.error('SocketException while connecting to $host:$port: ${error.message}', error);
@@ -41,6 +42,18 @@ class SocketMessagingService implements IMessagingService {
       _logger?.warn('Connection to $host:$port timed out');
       throw SocketException('Connection to $host:$port timed out');
     }
+  }
+
+  Future<void> _announcePresence() async {
+    final client = _client;
+    if (client == null) {
+      return;
+    }
+    final announcement = jsonEncode({
+      'type': MessageType.joinRequest.name,
+      'payload': {'announce': true},
+    });
+    client.writeln(announcement);
   }
 
   void _handleDisconnect() {

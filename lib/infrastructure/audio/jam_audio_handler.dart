@@ -27,7 +27,6 @@ class JamAudioHandler extends BaseAudioHandler with SeekHandler {
       ),
     );
     playbackState.add(playbackState.value.copyWith(processingState: AudioProcessingState.ready));
-    _player.play();
   }
 
   Future<Duration> position() async => _player.position;

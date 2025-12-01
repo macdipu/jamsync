@@ -86,6 +86,10 @@ class SpeakerController extends GetxController {
     _messageSub?.cancel();
     _messageSub = _messagingService.messages$.listen((message) {
       final targetSession = message.payload['sessionId'] as String?;
+      if (message.type == MessageType.joinRequest) {
+        _requestStateSnapshot();
+        return;
+      }
       if (targetSession != sessionId) {
         return;
       }

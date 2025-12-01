@@ -81,9 +81,6 @@ class SessionController extends GetxController {
     members.assignAll(session.members);
     queue.assignAll(session.queue);
     _updateNowPlaying(session);
-    if (session.player?.role == DeviceRole.speaker) {
-      Get.toNamed(Routes.speaker, arguments: session);
-    }
   }
 
   void _updateNowPlaying(Session session) {
