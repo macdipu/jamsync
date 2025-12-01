@@ -13,6 +13,22 @@ class Track {
   final Uri source;
   final Duration? duration;
 
+  Track copyWith({
+    String? id,
+    String? title,
+    String? artist,
+    Uri? source,
+    Duration? duration,
+  }) {
+    return Track(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      source: source ?? this.source,
+      duration: duration ?? this.duration,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

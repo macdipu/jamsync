@@ -2,193 +2,189 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:web_socket_channel/io.dart';
+
 import '../../core/logging/app_logger.dart';
 import '../../domain/entities/control_message.dart';
 import '../../domain/services_interfaces/i_messaging_service.dart';
 
-class _PeerConnection {
-  _PeerConnection(this.socket)
-      : label = '${socket.remoteAddress.address}:${socket.remotePort}';
+class WebSocketMessagingService implements IMessagingService {
+  WebSocketMessagingService({AppLogger? logger}) : _logger = logger;
 
-  final Socket socket;
-  final String label;
-  final StringBuffer buffer = StringBuffer();
-
-  void dispose() {
-    buffer.clear();
-    socket.destroy();
-  }
-}
-
-class SocketMessagingService implements IMessagingService {
-  SocketMessagingService({AppLogger? logger}) : _logger = logger;
-
+  final AppLogger? _logger;
   final _controller = StreamController<ControlMessage>.broadcast();
   final _statusController = StreamController<MessagingConnectionState>.broadcast();
-  ServerSocket? _server;
-  Socket? _client;
-  final _connections = <_PeerConnection>[];
-  final _clientBuffer = StringBuffer();
-  static const _connectTimeout = Duration(seconds: 5);
-  final AppLogger? _logger;
+
+  HttpServer? _server;
+  final _channels = <WebSocketChannel>[];
+  WebSocketChannel? _clientChannel;
+  int? _serverPort;
 
   @override
   Stream<ControlMessage> get messages$ => _controller.stream;
+
   @override
   Stream<MessagingConnectionState> get status$ => _statusController.stream;
 
   @override
-  Future<void> connect({required String host, required int port}) async {
-    await disconnect();
-    _statusController.add(MessagingConnectionState.connecting);
-    _logger?.info('Connecting to $host:$port');
-    try {
-      _client = await Socket.connect(host, port).timeout(_connectTimeout);
-      _statusController.add(MessagingConnectionState.connected);
-      _logger?.info('Connected to $host:$port');
-      _client!.listen(_handleIncoming, onDone: _handleDisconnect, onError: (_) => _handleDisconnect());
-      await _announcePresence();
-    } on SocketException catch (error) {
-      _handleDisconnect();
-      _logger?.error('SocketException while connecting to $host:$port: ${error.message}', error);
-      throw SocketException('Unable to connect to $host:$port (${error.message})');
-    } on TimeoutException {
-      _handleDisconnect();
-      _logger?.warn('Connection to $host:$port timed out');
-      throw SocketException('Connection to $host:$port timed out');
-    }
-  }
-
-  Future<void> _announcePresence() async {
-    final client = _client;
-    if (client == null) {
-      return;
-    }
-    const payloadType = MessageType.joinRequest;
-    final announcement = jsonEncode({
-      'type': payloadType.name,
-      'payload': {'announce': true},
-    });
-    await _safeWrite(client, announcement);
-  }
-
-  void _handleDisconnect() {
-    _client = null;
-    _statusController.add(MessagingConnectionState.disconnected);
-    _logger?.warn('Socket disconnected');
-  }
-
-  @override
-  Future<void> disconnect() async {
-    await _client?.close();
-    _client = null;
-    _statusController.add(MessagingConnectionState.disconnected);
-    _logger?.info('Socket closed');
-    _clientBuffer.clear();
-  }
-
-  @override
-  Future<void> send(ControlMessage message) async {
-    final payloadJson = jsonEncode(message.toJson());
-    if (_client != null) {
-      _logger?.info('Sending message ${message.type} to server');
-      await _safeWrite(_client!, payloadJson);
-      return;
-    }
-    await _broadcastPayload(payloadJson);
-  }
-
-  void _handleIncoming(List<int> data, {StringBuffer? buffer, _PeerConnection? origin}) {
-    final sink = buffer ?? _clientBuffer;
-    final chunk = utf8.decode(data);
-    if (sink.isNotEmpty) {
-      sink.write(chunk);
-    } else {
-      sink.write(chunk);
-    }
-    final combined = sink.toString();
-    final lines = combined.split('\n');
-    final hasTrailing = !combined.endsWith('\n');
-    sink
-      ..clear()
-      ..write(hasTrailing ? lines.removeLast() : '');
-    for (final line in lines.where((line) => line.trim().isNotEmpty)) {
-      try {
-        final json = jsonDecode(line) as Map<String, dynamic>;
-        final message = ControlMessage.fromJson(json);
-        _controller.add(message);
-        unawaited(_broadcast(message, origin: origin));
-      } catch (error, stackTrace) {
-        _logger?.error('Invalid control message payload: $error', error, stackTrace);
-      }
-    }
-  }
-
-  Future<void> _broadcast(ControlMessage message, {_PeerConnection? origin}) async {
-    final payload = jsonEncode(message.toJson());
-    await _broadcastPayload(payload, origin: origin);
-  }
-
-  Future<void> _broadcastPayload(String payload, {_PeerConnection? origin}) async {
-    final targets = List<_PeerConnection>.from(_connections);
-    for (final peer in targets) {
-      if (peer == origin) {
-        continue;
-      }
-      final ok = await _safeWrite(peer.socket, payload);
-      if (!ok) {
-        _removeConnection(peer, reason: 'write failure');
-      }
-    }
-  }
-
-  @override
   Future<void> startHub({required int port}) async {
-    await stopHub();
-    _server = await ServerSocket.bind(InternetAddress.anyIPv4, port);
-    _statusController.add(MessagingConnectionState.connected);
-    _logger?.info('Messaging hub started on port $port');
-    _server!.listen((client) {
-      final peer = _PeerConnection(client);
-      _connections.add(peer);
-      _logger?.info('Client connected: ${peer.label}');
-      client.listen(
-        (data) => _handleIncoming(data, buffer: peer.buffer, origin: peer),
-        onDone: () => _removeConnection(peer, reason: 'client closed'),
-        onError: (error, stackTrace) => _removeConnection(peer, reason: '$error', stackTrace: stackTrace),
-        cancelOnError: true,
-      );
-    });
+    if (_server != null) {
+      _logger?.warn('WebSocket hub already running on port $_serverPort');
+      return;
+    }
+
+    try {
+      _logger?.info('Starting WebSocket hub on port $port');
+      _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
+      _serverPort = port;
+
+      _server!.transform(WebSocketTransformer()).listen((WebSocket webSocket) {
+        final channel = IOWebSocketChannel(webSocket);
+        _channels.add(channel);
+        _logger?.info('WebSocket client connected. Total clients: ${_channels.length}');
+
+        channel.stream.listen(
+              (data) => _handleIncoming(data, origin: channel),
+          onDone: () => _removeChannel(channel, reason: 'client disconnected'),
+          onError: (error) => _removeChannel(channel, reason: 'error: $error'),
+          cancelOnError: true,
+        );
+      });
+
+      _statusController.add(MessagingConnectionState.connected);
+      _logger?.info('WebSocket hub started on port $port');
+    } catch (e, stackTrace) {
+      _logger?.error('Failed to start WebSocket hub: $e', e, stackTrace);
+      _statusController.add(MessagingConnectionState.disconnected);
+      rethrow;
+    }
   }
 
   @override
   Future<void> stopHub() async {
-    for (final peer in _connections) {
-      await peer.socket.close();
+    for (final channel in _channels) {
+      await channel.sink.close();
     }
-    _connections.clear();
-    await _server?.close();
+    _channels.clear();
+
+    await _server?.close(force: true);
     _server = null;
+    _serverPort = null;
+
     _statusController.add(MessagingConnectionState.disconnected);
-    _logger?.info('Messaging hub stopped');
+    _logger?.info('WebSocket hub stopped');
   }
 
-  Future<bool> _safeWrite(Socket socket, String payload) async {
+  @override
+  Future<void> connect({required String host, required int port}) async {
+    await disconnect();
+
     try {
-      final framed = payload.endsWith('\n') ? payload : '$payload\n';
-      socket.add(utf8.encode(framed));
-      await socket.flush();
-      return true;
-    } on Object catch (error, stackTrace) {
-      _logger?.error('Failed to write to socket: $error', error, stackTrace);
-      return false;
+      _statusController.add(MessagingConnectionState.connecting);
+      _logger?.info('Connecting to WebSocket server at ws://$host:$port');
+
+      final uri = Uri.parse('ws://$host:$port');
+      _clientChannel = IOWebSocketChannel.connect(uri);
+
+      _clientChannel!.stream.listen(
+        _handleIncoming,
+        onDone: _handleDisconnect,
+        onError: (error) {
+          _logger?.error('WebSocket error: $error', error);
+          _handleDisconnect();
+        },
+        cancelOnError: true,
+      );
+
+      _statusController.add(MessagingConnectionState.connected);
+      _logger?.info('Connected to WebSocket server');
+
+      // Announce presence
+      await _announcePresence();
+    } catch (e, stackTrace) {
+      _logger?.error('Failed to connect to WebSocket: $e', e, stackTrace);
+      _handleDisconnect();
+      rethrow;
     }
   }
 
-  void _removeConnection(_PeerConnection peer, {String? reason, StackTrace? stackTrace}) {
-    if (_connections.remove(peer)) {
-      _logger?.error('Client disconnected: ${peer.label}${reason != null ? ' ($reason)' : ''}', stackTrace);
+  @override
+  Future<void> disconnect() async {
+    await _clientChannel?.sink.close();
+    _clientChannel = null;
+    _statusController.add(MessagingConnectionState.disconnected);
+    _logger?.info('Disconnected from WebSocket server');
+  }
+
+  @override
+  Future<void> send(ControlMessage message) async {
+    final payload = jsonEncode(message.toJson());
+
+    // Send to server if connected as client
+    if (_clientChannel != null) {
+      try {
+        _clientChannel!.sink.add(payload);
+        _logger?.info('Sent message ${message.type} to server');
+      } catch (e, stackTrace) {
+        _logger?.error('Failed to send message: $e', e, stackTrace);
+      }
+      return;
     }
-    peer.dispose();
+
+    // Broadcast to all clients if running as hub
+    await _broadcast(payload);
+  }
+
+  Future<void> _announcePresence() async {
+    final message = ControlMessage(
+      type: MessageType.joinRequest,
+      payload: {'announce': true},
+    );
+    await send(message);
+  }
+
+  void _handleIncoming(dynamic data, {WebSocketChannel? origin}) {
+    try {
+      final json = jsonDecode(data as String) as Map<String, dynamic>;
+      final message = ControlMessage.fromJson(json);
+      _controller.add(message);
+
+      // Broadcast to other clients if we're the hub
+      if (_server != null && origin != null) {
+        final payload = jsonEncode(message.toJson());
+        unawaited(_broadcast(payload, excludeChannel: origin));
+      }
+    } catch (e, stackTrace) {
+      _logger?.error('Invalid WebSocket message: $e', e, stackTrace);
+    }
+  }
+
+  void _handleDisconnect() {
+    _clientChannel = null;
+    _statusController.add(MessagingConnectionState.disconnected);
+    _logger?.warn('WebSocket disconnected');
+  }
+
+  Future<void> _broadcast(String payload, {WebSocketChannel? excludeChannel}) async {
+    final targets = List<WebSocketChannel>.from(_channels);
+    for (final channel in targets) {
+      if (channel == excludeChannel) {
+        continue;
+      }
+      try {
+        channel.sink.add(payload);
+      } catch (e) {
+        _logger?.error('Failed to broadcast to client: $e', e);
+        _removeChannel(channel, reason: 'broadcast failure');
+      }
+    }
+  }
+
+  void _removeChannel(WebSocketChannel channel, {String? reason}) {
+    if (_channels.remove(channel)) {
+      _logger?.info('Client removed${reason != null ? ' ($reason)' : ''}. Remaining: ${_channels.length}');
+    }
+    channel.sink.close();
   }
 }

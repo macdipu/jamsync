@@ -18,6 +18,42 @@ class SpeakerPage extends GetView<SpeakerController> {
       appBar: AppBar(
         title: const Text('Speaker Mode'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        actions: [
+          Obx(() {
+            final isConnected = controller.isStreamConnected.value;
+            return Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isConnected ? Colors.green : Colors.grey,
+                      boxShadow: isConnected ? [
+                        BoxShadow(
+                          color: Colors.green.withValues(alpha: 0.6),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ] : null,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    isConnected ? 'Online' : 'Offline',
+                    style: TextStyle(
+                      color: isConnected ? Colors.green : Colors.grey,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
       body: Column(
         children: [
@@ -125,6 +161,77 @@ class SpeakerPage extends GetView<SpeakerController> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 48),
+
+                    Obx(() {
+                      final isConnected = controller.isStreamConnected.value;
+                      final url = controller.streamUrl.value;
+
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isConnected
+                            ? Colors.green.withValues(alpha: 0.15)
+                            : Colors.grey.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isConnected ? Colors.green : Colors.grey,
+                            width: 2,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isConnected ? Colors.green : Colors.grey,
+                                boxShadow: isConnected ? [
+                                  BoxShadow(
+                                    color: Colors.green.withValues(alpha: 0.5),
+                                    blurRadius: 8,
+                                    spreadRadius: 2,
+                                  ),
+                                ] : null,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Flexible(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    isConnected ? 'Connected to Stream' : 'Waiting for stream...',
+                                    style: TextStyle(
+                                      color: isConnected ? Colors.green : Colors.grey,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  if (url.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      url,
+                                      style: TextStyle(
+                                        color: isConnected
+                                          ? Colors.green.withValues(alpha: 0.8)
+                                          : Colors.grey,
+                                        fontSize: 10,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 24),
 
                     // Sync status indicator
                     Obx(() {

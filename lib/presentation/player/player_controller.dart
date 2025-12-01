@@ -11,18 +11,22 @@ import '../../domain/entities/track.dart';
 import '../../domain/services_interfaces/i_messaging_service.dart';
 import '../../domain/services_interfaces/i_playback_service.dart';
 import '../../domain/services_interfaces/i_media_scanner_service.dart';
+import '../../domain/services_interfaces/i_audio_stream_service.dart';
 
 class PlayerController extends GetxController {
   PlayerController({
     required IPlaybackService playbackService,
     required IMessagingService messagingService,
+    required IAudioStreamService audioStreamService,
     IMediaScannerService? mediaScannerService,
   })  : _playbackService = playbackService,
         _messagingService = messagingService,
+        _audioStreamService = audioStreamService,
         _mediaScannerService = mediaScannerService ?? Get.find<IMediaScannerService>();
 
   final IPlaybackService _playbackService;
   final IMessagingService _messagingService;
+  final IAudioStreamService _audioStreamService;
   final IMediaScannerService _mediaScannerService;
 
   final currentSession = Rxn<Session>();
@@ -33,6 +37,7 @@ class PlayerController extends GetxController {
   final errorMessage = RxnString();
   final isScanning = false.obs;
   final isLooping = false.obs;
+  final streamUrl = ''.obs;
 
   StreamSubscription<PlaybackState>? _playbackSubscription;
   StreamSubscription<bool>? _loopSubscription;
@@ -47,15 +52,23 @@ class PlayerController extends GetxController {
     _loopSubscription?.cancel();
     _positionTimer?.cancel();
     _syncTimer?.cancel();
+    _audioStreamService.stopServer();
     super.onClose();
   }
 
-  void attachSession(Session session) {
+  void attachSession(Session session) async {
     currentSession.value = session;
     queue.assignAll(session.queue);
     selectedTrack.value = session.queue.isEmpty ? null : session.queue.first;
     _observePlayback();
-    _startPositionPolling();
+
+    // Start HTTP audio stream server
+    try {
+      await _audioStreamService.startServer(port: 8888);
+    } catch (e) {
+      // Server might already be running
+    }
+
     _subscribeToMessages(session.id);
     _startSyncTicks();
     _observeLoopMode();
@@ -107,6 +120,33 @@ class PlayerController extends GetxController {
     selectedTrack.value = track;
     await _playbackService.loadTrack(track);
     playbackPosition.value = Duration.zero;
+
+    // Stream the track via HTTP and broadcast URL to all devices
+    try {
+      final url = await _audioStreamService.streamTrack(track);
+      streamUrl.value = url;
+
+      Get.log('🎵 Stream URL generated: $url');
+
+      // Broadcast stream URL to all connected devices
+      final session = currentSession.value;
+      if (session != null) {
+        Get.log('📡 Broadcasting stream URL to all devices in session ${session.id}');
+        await _messagingService.send(ControlMessage(
+          type: MessageType.streamUrl,
+          payload: {
+            'sessionId': session.id,
+            'streamUrl': url,
+          },
+        ));
+        Get.log('✅ Stream URL broadcast complete');
+      }
+    } catch (e) {
+      // Stream setup failed - continue without streaming
+      Get.log('❌ Failed to setup audio stream: $e');
+      errorMessage.value = 'Failed to setup audio stream: $e';
+    }
+
     await _broadcastPlaybackCommand(
       'load',
       {
@@ -279,6 +319,15 @@ class PlayerController extends GetxController {
           'positionMs': position.inMilliseconds,
         },
       ),
+      // Send stream URL if available
+      if (streamUrl.value.isNotEmpty)
+        ControlMessage(
+          type: MessageType.streamUrl,
+          payload: {
+            'sessionId': session.id,
+            'streamUrl': streamUrl.value,
+          },
+        ),
       ControlMessage(
         type: MessageType.playbackCommand,
         payload: {

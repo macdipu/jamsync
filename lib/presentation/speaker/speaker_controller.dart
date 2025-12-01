@@ -8,6 +8,7 @@ import '../../domain/entities/sync_packet.dart';
 import '../../domain/services_interfaces/i_messaging_service.dart';
 import '../../domain/services_interfaces/i_playback_service.dart';
 import '../../domain/services_interfaces/i_sync_engine.dart';
+import '../../domain/services_interfaces/i_audio_stream_service.dart';
 import '../../domain/entities/track.dart';
 
 class SpeakerController extends GetxController {
@@ -15,13 +16,16 @@ class SpeakerController extends GetxController {
     required IPlaybackService playbackService,
     required ISyncEngine syncEngine,
     required IMessagingService messagingService,
+    required IAudioStreamService audioStreamService,
   })  : _playbackService = playbackService,
         _syncEngine = syncEngine,
-        _messagingService = messagingService;
+        _messagingService = messagingService,
+        _audioStreamService = audioStreamService;
 
   final IPlaybackService _playbackService;
   final ISyncEngine _syncEngine;
   final IMessagingService _messagingService;
+  final IAudioStreamService _audioStreamService;
 
   final currentSession = Rxn<Session>();
   final playbackState = ''.obs;
@@ -31,9 +35,14 @@ class SpeakerController extends GetxController {
   final driftHistory = <double>[].obs;
   final queue = <Track>[].obs;
   final currentTrack = Rxn<Track>();
+  final streamUrl = ''.obs;
+  final streamStatus = AudioStreamStatus.idle.obs;
+  final isStreamConnected = false.obs;
+  final _pendingPlayCommand = Rxn<Map<String, dynamic>>();
 
   StreamSubscription<ControlMessage>? _messageSub;
   StreamSubscription<PlaybackState>? _playbackSub;
+  StreamSubscription<AudioStreamStatus>? _streamStatusSub;
 
   Timer? _pingTimer;
 
@@ -43,20 +52,12 @@ class SpeakerController extends GetxController {
     currentTrack.value = session.queue.isEmpty ? null : session.queue.first;
     _syncEngine.bindPlayback(_playbackService);
     _observePlayback();
+    _observeStreamStatus();
     _subscribeToMessages(session.id);
     _startPinging();
-    _loadInitialTrack(session);
     _requestStateSnapshot();
   }
 
-  Future<void> _loadInitialTrack(Session session) async {
-    if (session.queue.isEmpty) {
-      return;
-    }
-    final track = session.queue.first;
-    await _playbackService.loadTrack(track);
-    currentTrack.value = track;
-  }
 
   void updateDrift(Duration expected, Duration actual) {
     driftMs.value = (expected - actual).inMilliseconds.toDouble();
@@ -71,7 +72,9 @@ class SpeakerController extends GetxController {
   void onClose() {
     _messageSub?.cancel();
     _playbackSub?.cancel();
+    _streamStatusSub?.cancel();
     _pingTimer?.cancel();
+    _audioStreamService.stopServer();
     super.onClose();
   }
 
@@ -79,6 +82,13 @@ class SpeakerController extends GetxController {
     _playbackSub?.cancel();
     _playbackSub = _playbackService.state$.listen((state) {
       playbackState.value = state.name;
+    });
+  }
+
+  void _observeStreamStatus() {
+    _streamStatusSub?.cancel();
+    _streamStatusSub = _audioStreamService.status$.listen((status) {
+      streamStatus.value = status;
     });
   }
 
@@ -105,6 +115,12 @@ class SpeakerController extends GetxController {
           break;
         case MessageType.pong:
           _handlePong(message.payload);
+          break;
+        case MessageType.stateResponse:
+          _handleStateResponse(message.payload);
+          break;
+        case MessageType.streamUrl:
+          _handleStreamUrl(message.payload);
           break;
         default:
           break;
@@ -184,12 +200,20 @@ class SpeakerController extends GetxController {
           return;
         }
         final track = Track.fromJson(trackJson);
-        await _playbackService.loadTrack(track);
+
+        // Just update current track - wait for stream URL before loading
         currentTrack.value = track;
         break;
       case 'play':
+        // If track not loaded yet, defer play command
+        final duration = await _playbackService.getDuration();
+        if (duration == null) {
+          _pendingPlayCommand.value = payload;
+          return;
+        }
         await _seekToPayloadPosition(payload);
         await _playbackService.play();
+        _pendingPlayCommand.value = null;
         break;
       case 'pause':
         await _playbackService.pause();
@@ -223,6 +247,70 @@ class SpeakerController extends GetxController {
     }
     if (currentTrack.value == null && tracks.isNotEmpty) {
       currentTrack.value = tracks.first;
+    }
+  }
+
+  Future<void> _handleStateResponse(Map<String, dynamic> payload) async {
+    final isPlaying = payload['isPlaying'] as bool? ?? false;
+    final positionMs = payload['positionMs'] as int?;
+    final trackJson = payload['track'] as Map<String, dynamic>?;
+
+    if (trackJson != null) {
+      final track = Track.fromJson(trackJson);
+      if (currentTrack.value?.id != track.id) {
+        // If we have a stream URL, use it; otherwise use track's source
+        final url = streamUrl.value;
+        final trackToLoad = url.isNotEmpty
+            ? track.copyWith(source: Uri.parse(url))
+            : track;
+
+        await _playbackService.loadTrack(trackToLoad);
+        currentTrack.value = track;
+      }
+    }
+
+    if (positionMs != null) {
+      await _playbackService.seek(Duration(milliseconds: positionMs));
+    }
+
+    if (isPlaying) {
+      await _playbackService.play();
+    }
+  }
+
+  Future<void> _handleStreamUrl(Map<String, dynamic> payload) async {
+    final url = payload['streamUrl'] as String?;
+    if (url == null || url.isEmpty) {
+      Get.log('⚠️ Received empty or null stream URL');
+      return;
+    }
+
+    Get.log('✅ Received stream URL: $url');
+    streamUrl.value = url;
+    final track = currentTrack.value;
+
+    if (track != null) {
+      try {
+        Get.log('🔄 Loading track from stream URL...');
+        final streamTrack = track.copyWith(source: Uri.parse(url));
+        await _playbackService.loadTrack(streamTrack);
+
+        Get.log('✅ Track loaded from stream! Setting connection status to true');
+        isStreamConnected.value = true;
+
+        final pendingPlay = _pendingPlayCommand.value;
+        if (pendingPlay != null) {
+          Get.log('▶️ Executing pending play command');
+          await _seekToPayloadPosition(pendingPlay);
+          await _playbackService.play();
+          _pendingPlayCommand.value = null;
+        }
+      } catch (e) {
+        Get.log('❌ Failed to load track from stream: $e');
+        isStreamConnected.value = false;
+      }
+    } else {
+      Get.log('⚠️ No current track to load stream URL into');
     }
   }
 }

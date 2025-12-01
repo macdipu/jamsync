@@ -10,6 +10,8 @@ enum MessageType {
   ping,
   pong,
   stateRequest,
+  stateResponse,
+  streamUrl,
   text,
 }
 
