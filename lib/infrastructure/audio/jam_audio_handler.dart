@@ -45,6 +45,12 @@ class JamAudioHandler extends BaseAudioHandler with SeekHandler {
 
   Stream<PlaybackState> get playbackStateStream => playbackState;
 
+  Stream<bool> get loopingStream =>
+      _player.loopModeStream.map((mode) => mode == LoopMode.one);
+
+  Future<void> setLoopMode(bool looping) =>
+      _player.setLoopMode(looping ? LoopMode.one : LoopMode.off);
+
   MediaItem? get currentMediaItem => _currentMediaItem;
 
   MediaItem _toMediaItem(Track track) {

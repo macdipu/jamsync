@@ -29,4 +29,10 @@ class JustAudioPlaybackService implements IPlaybackService {
   @override
   Stream<PlaybackState> get state$ => _handler.playbackStateStream
       .map((event) => event.playing ? PlaybackState.playing : PlaybackState.paused);
+
+  @override
+  Future<void> setLoopMode(bool looping) => _handler.setLoopMode(looping);
+
+  @override
+  Stream<bool> get looping$ => _handler.loopingStream;
 }

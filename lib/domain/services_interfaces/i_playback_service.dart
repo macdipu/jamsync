@@ -10,5 +10,6 @@ abstract class IPlaybackService {
   Future<Duration> getPosition();
   Future<Duration?> getDuration();
   Stream<PlaybackState> get state$;
+  Future<void> setLoopMode(bool looping);
+  Stream<bool> get looping$;
 }
-

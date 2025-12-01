@@ -24,6 +24,20 @@ class PlayerPage extends GetView<PlayerController> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Obx(() => Text('Queue: ${controller.queue.length} tracks')),
+                  const Spacer(),
+                  Obx(() => Text(controller.isLooping.value ? 'Loop: On' : 'Loop: Off')),
+                  IconButton(
+                    icon: Obx(() => Icon(controller.isLooping.value ? Icons.repeat_one : Icons.repeat)),
+                    onPressed: controller.toggleLoop,
+                  ),
+                ],
+              ),
+            ),
             if (track != null) ...[
               ListTile(
                 title: Text(track.title),

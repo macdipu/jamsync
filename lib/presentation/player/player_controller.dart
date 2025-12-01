@@ -32,8 +32,10 @@ class PlayerController extends GetxController {
   final isPlaying = false.obs;
   final errorMessage = RxnString();
   final isScanning = false.obs;
+  final isLooping = false.obs;
 
   StreamSubscription<PlaybackState>? _playbackSubscription;
+  StreamSubscription<bool>? _loopSubscription;
   StreamSubscription<ControlMessage>? _messageSubscription;
   Timer? _positionTimer;
   Timer? _syncTimer;
@@ -42,6 +44,7 @@ class PlayerController extends GetxController {
   void onClose() {
     _playbackSubscription?.cancel();
     _messageSubscription?.cancel();
+    _loopSubscription?.cancel();
     _positionTimer?.cancel();
     _syncTimer?.cancel();
     super.onClose();
@@ -55,6 +58,7 @@ class PlayerController extends GetxController {
     _startPositionPolling();
     _subscribeToMessages(session.id);
     _startSyncTicks();
+    _observeLoopMode();
     unawaited(scanLocalLibrary());
   }
 
@@ -149,11 +153,25 @@ class PlayerController extends GetxController {
     currentSession.value = session.copyWith(members: members);
   }
 
+  void _observeLoopMode() {
+    _loopSubscription?.cancel();
+    _loopSubscription = _playbackService.looping$.listen((value) {
+      isLooping.value = value;
+    });
+  }
+
   void _observePlayback() {
+    _positionTimer?.cancel();
     _playbackSubscription?.cancel();
     _playbackSubscription = _playbackService.state$.listen((state) {
       isPlaying.value = state == PlaybackState.playing;
     });
+  }
+
+  Future<void> toggleLoop() async {
+    final next = !isLooping.value;
+    await _playbackService.setLoopMode(next);
+    isLooping.value = next;
   }
 
   void _startPositionPolling() {
