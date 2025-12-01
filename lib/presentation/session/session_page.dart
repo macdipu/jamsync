@@ -119,21 +119,41 @@ class SessionPage extends GetView<SessionController> {
                       subtitle: Text(subtitle),
                       trailing: PopupMenuButton<String>(
                         onSelected: (value) {
-                          if (value == 'player') {
-                            controller.assignPlayer(member);
-                          } else if (value == 'speaker') {
-                            controller.assignSpeaker(member);
-                          } else if (value == 'view_player') {
-                            controller.openPlayer(member);
-                          } else if (value == 'view_speaker') {
-                            controller.openSpeaker(member);
+                          switch (value) {
+                            case 'make_player':
+                              controller.assignPlayer(member);
+                              break;
+                            case 'make_speaker':
+                              controller.assignSpeaker(member);
+                              break;
+                            case 'open_player':
+                              controller.openPlayer(member);
+                              break;
+                            case 'open_speaker':
+                              controller.openSpeaker(member);
+                              break;
                           }
                         },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(value: 'player', child: Text('Make Player')),
-                          PopupMenuItem(value: 'speaker', child: Text('Make Speaker')),
-                          PopupMenuItem(value: 'view_player', child: Text('Open Player UI')),
-                          PopupMenuItem(value: 'view_speaker', child: Text('Open Speaker UI')),
+                        itemBuilder: (_) => [
+                          PopupMenuItem(
+                            value: 'make_player',
+                            enabled: member.role != DeviceRole.player && member.role != DeviceRole.admin,
+                            child: const Text('Make Player (time source)'),
+                          ),
+                          PopupMenuItem(
+                            value: 'make_speaker',
+                            enabled: member.role != DeviceRole.speaker,
+                            child: const Text('Make Speaker (listener)'),
+                          ),
+                          const PopupMenuDivider(),
+                          PopupMenuItem(
+                            value: 'open_player',
+                            child: Text('Open Player UI${member.isLocal ? ' (you)' : ''}'),
+                          ),
+                          PopupMenuItem(
+                            value: 'open_speaker',
+                            child: Text('Open Speaker UI${member.isLocal ? ' (you)' : ''}'),
+                          ),
                         ],
                       ),
                     );
