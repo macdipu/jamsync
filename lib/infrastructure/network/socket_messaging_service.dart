@@ -6,6 +6,20 @@ import '../../core/logging/app_logger.dart';
 import '../../domain/entities/control_message.dart';
 import '../../domain/services_interfaces/i_messaging_service.dart';
 
+class _PeerConnection {
+  _PeerConnection(this.socket)
+      : label = '${socket.remoteAddress.address}:${socket.remotePort}';
+
+  final Socket socket;
+  final String label;
+  final StringBuffer buffer = StringBuffer();
+
+  void dispose() {
+    buffer.clear();
+    socket.destroy();
+  }
+}
+
 class SocketMessagingService implements IMessagingService {
   SocketMessagingService({AppLogger? logger}) : _logger = logger;
 
@@ -13,7 +27,8 @@ class SocketMessagingService implements IMessagingService {
   final _statusController = StreamController<MessagingConnectionState>.broadcast();
   ServerSocket? _server;
   Socket? _client;
-  final _connections = <Socket>[];
+  final _connections = <_PeerConnection>[];
+  final _clientBuffer = StringBuffer();
   static const _connectTimeout = Duration(seconds: 5);
   final AppLogger? _logger;
 
@@ -68,26 +83,38 @@ class SocketMessagingService implements IMessagingService {
     _client = null;
     _statusController.add(MessagingConnectionState.disconnected);
     _logger?.info('Socket closed');
+    _clientBuffer.clear();
   }
 
   @override
   Future<void> send(ControlMessage message) async {
     if (_client != null) {
       _logger?.info('Sending message ${message.type} to server');
-      _client!.writeln(jsonEncode(message.toJson()));
+      await _safeWrite(_client!, jsonEncode(message.toJson()));
       return;
     }
     final payload = jsonEncode(message.toJson());
-    for (final socket in _connections) {
-      _logger?.info('Broadcasting message ${message.type} to ${socket.remoteAddress.address}:${socket.remotePort}');
-      socket.writeln(payload);
+    for (final peer in _connections) {
+      _logger?.info('Broadcasting message ${message.type} to ${peer.label}');
+      unawaited(_safeWrite(peer.socket, payload));
     }
   }
 
-  void _handleIncoming(List<int> data, {Socket? origin}) {
-    final raw = utf8.decode(data);
-    final lines = raw.split('\n');
-    for (final line in lines.where((element) => element.trim().isNotEmpty)) {
+  void _handleIncoming(List<int> data, {StringBuffer? buffer, _PeerConnection? origin}) {
+    final sink = buffer ?? _clientBuffer;
+    final chunk = utf8.decode(data);
+    if (sink.isNotEmpty) {
+      sink.write(chunk);
+    } else {
+      sink.write(chunk);
+    }
+    final combined = sink.toString();
+    final lines = combined.split('\n');
+    final hasTrailing = !combined.endsWith('\n');
+    sink
+      ..clear()
+      ..write(hasTrailing ? lines.removeLast() : '');
+    for (final line in lines.where((line) => line.trim().isNotEmpty)) {
       try {
         final json = jsonDecode(line) as Map<String, dynamic>;
         final message = ControlMessage.fromJson(json);
@@ -99,10 +126,10 @@ class SocketMessagingService implements IMessagingService {
     }
   }
 
-  void _broadcast(ControlMessage message, {Socket? origin}) {
+  void _broadcast(ControlMessage message, {_PeerConnection? origin}) {
     final payload = jsonEncode(message.toJson());
-    for (final socket in _connections.where((s) => s != origin)) {
-      socket.writeln(payload);
+    for (final peer in _connections.where((peer) => peer != origin)) {
+      unawaited(_safeWrite(peer.socket, payload));
     }
   }
 
@@ -113,31 +140,47 @@ class SocketMessagingService implements IMessagingService {
     _statusController.add(MessagingConnectionState.connected);
     _logger?.info('Messaging hub started on port $port');
     _server!.listen((client) {
-      _connections.add(client);
-      _logger?.info('Client connected: ${client.remoteAddress.address}:${client.remotePort}');
+      final peer = _PeerConnection(client);
+      _connections.add(peer);
+      _logger?.info('Client connected: ${peer.label}');
       client.listen(
-        (data) => _handleIncoming(data, origin: client),
+        (data) => _handleIncoming(data, buffer: peer.buffer, origin: peer),
         onDone: () {
-          _connections.remove(client);
-          _logger?.info('Client disconnected: ${client.remoteAddress.address}:${client.remotePort}');
+          _connections.remove(peer);
+          _logger?.info('Client disconnected: ${peer.label}');
+          peer.dispose();
         },
         onError: (error, stackTrace) {
-          _connections.remove(client);
-          _logger?.error('Client socket error: $error', error, stackTrace);
+          _connections.remove(peer);
+          _logger?.error('Client socket error (${peer.label}): $error', error, stackTrace);
+          peer.dispose();
         },
+        cancelOnError: true,
       );
     });
   }
 
   @override
   Future<void> stopHub() async {
-    for (final socket in _connections) {
-      await socket.close();
+    for (final peer in _connections) {
+      await peer.socket.close();
     }
     _connections.clear();
     await _server?.close();
     _server = null;
     _statusController.add(MessagingConnectionState.disconnected);
     _logger?.info('Messaging hub stopped');
+  }
+
+  Future<void> _safeWrite(Socket socket, String payload) async {
+    try {
+      socket.write(payload);
+      if (!payload.endsWith('\n')) {
+        socket.write('\n');
+      }
+      await socket.flush();
+    } on Object catch (error, stackTrace) {
+      _logger?.error('Failed to write to socket: $error', error, stackTrace);
+    }
   }
 }
