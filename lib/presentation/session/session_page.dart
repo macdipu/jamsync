@@ -22,149 +22,160 @@ class SessionPage extends GetView<SessionController> {
         if (current == null) {
           return const Center(child: Text('No session selected.'));
         }
-        return SingleChildScrollView(
-          padding: const EdgeInsets.only(bottom: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _SessionHero(session: current),
-              Obx(() {
-                final state = controller.connectionState.value;
-                if (state == MessagingConnectionState.connected) {
-                  return const SizedBox.shrink();
-                }
-                return Container(
-                  width: double.infinity,
-                  color: Colors.amber.shade100,
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.wifi_off, size: 18),
-                          const SizedBox(width: 8),
-                          Text('Connection: ${state.name}'),
-                          const Spacer(),
-                          Obx(() {
-                            return ElevatedButton.icon(
-                              onPressed: controller.reconnecting.value
-                                  ? null
-                                  : () => controller.attemptReconnect(showToast: true),
-                              icon: controller.reconnecting.value
-                                  ? const SizedBox(
-                                      width: 14,
-                                      height: 14,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    )
-                                  : const Icon(Icons.refresh, size: 16),
-                              label: Text(controller.reconnecting.value ? 'Retrying...' : 'Retry'),
-                            );
-                          }),
-                        ],
-                      ),
-                      Obx(() {
-                        final error = controller.lastError.value;
-                        return error == null
-                            ? const SizedBox.shrink()
-                            : Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(error, style: const TextStyle(color: Colors.red)),
+        final mediaQuery = MediaQuery.of(context);
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final content = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SessionHero(session: current),
+                Obx(() {
+                  final state = controller.connectionState.value;
+                  if (state == MessagingConnectionState.connected) {
+                    return const SizedBox.shrink();
+                  }
+                  return Container(
+                    width: double.infinity,
+                    color: Colors.amber.shade100,
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.wifi_off, size: 18),
+                            const SizedBox(width: 8),
+                            Text('Connection: ${state.name}'),
+                            const Spacer(),
+                            Obx(() {
+                              return ElevatedButton.icon(
+                                onPressed: controller.reconnecting.value
+                                    ? null
+                                    : () => controller.attemptReconnect(showToast: true),
+                                icon: controller.reconnecting.value
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.refresh, size: 16),
+                                label: Text(controller.reconnecting.value ? 'Retrying...' : 'Retry'),
                               );
-                      }),
-                    ],
+                            }),
+                          ],
+                        ),
+                        Obx(() {
+                          final error = controller.lastError.value;
+                          return error == null
+                              ? const SizedBox.shrink()
+                              : Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Text(error, style: const TextStyle(color: Colors.red)),
+                                );
+                        }),
+                      ],
+                    ),
+                  );
+                }),
+                ListTile(
+                  title: Text(current.name),
+                  subtitle: Text('Admin: ${current.admin.name} • ${current.admin.ip}:${current.admin.port}'),
+                  trailing: FilledButton.icon(
+                    onPressed: controller.scanLocalLibrary,
+                    icon: const Icon(Icons.library_music),
+                    label: const Text('Scan MP3s'),
                   ),
-                );
-              }),
-              ListTile(
-                title: Text(current.name),
-                subtitle: Text('Admin: ${current.admin.name} • ${current.admin.ip}:${current.admin.port}'),
-                trailing: FilledButton.icon(
-                  onPressed: controller.scanLocalLibrary,
-                  icon: const Icon(Icons.library_music),
-                  label: const Text('Scan MP3s'),
                 ),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Text('Members', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-              Obx(() {
-                final members = controller.members;
-                return ListView.builder(
-                  physics: const NeverScrollableScrollPhysics(),
-                  shrinkWrap: true,
-                  itemCount: members.length,
-                  itemBuilder: (context, index) {
-                    final member = members[index];
-                    final isLocal = member.isLocal;
-                    final roleLabel = member.role.name.toUpperCase();
-                    final subtitle = '${member.ip}:${member.port} • $roleLabel';
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: _roleColor(member.role, context),
-                        child: Icon(_roleIcon(member.role), color: Colors.white),
-                      ),
-                      title: Row(
-                        children: [
-                          Expanded(child: Text(member.name)),
-                          if (isLocal)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 6),
-                              child: Chip(
-                                label: const Text('You'),
-                                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Text('Members', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                Obx(() {
+                  final members = controller.members;
+                  return ListView.builder(
+                    physics: const NeverScrollableScrollPhysics(),
+                    shrinkWrap: true,
+                    itemCount: members.length,
+                    itemBuilder: (context, index) {
+                      final member = members[index];
+                      final isLocal = member.isLocal;
+                      final roleLabel = member.role.name.toUpperCase();
+                      final subtitle = '${member.ip}:${member.port} • $roleLabel';
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: _roleColor(member.role, context),
+                          child: Icon(_roleIcon(member.role), color: Colors.white),
+                        ),
+                        title: Row(
+                          children: [
+                            Expanded(child: Text(member.name)),
+                            if (isLocal)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 6),
+                                child: Chip(
+                                  label: const Text('You'),
+                                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
                               ),
+                          ],
+                        ),
+                        subtitle: Text(subtitle),
+                        trailing: PopupMenuButton<String>(
+                          onSelected: (value) {
+                            switch (value) {
+                              case 'make_player':
+                                controller.assignPlayer(member);
+                                break;
+                              case 'make_speaker':
+                                controller.assignSpeaker(member);
+                                break;
+                              case 'open_player':
+                                controller.openPlayer(member);
+                                break;
+                              case 'open_speaker':
+                                controller.openSpeaker(member);
+                                break;
+                            }
+                          },
+                          itemBuilder: (_) => [
+                            PopupMenuItem(
+                              value: 'make_player',
+                              enabled: member.role != DeviceRole.player && member.role != DeviceRole.admin,
+                              child: const Text('Make Player (time source)'),
                             ),
-                        ],
-                      ),
-                      subtitle: Text(subtitle),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (value) {
-                          switch (value) {
-                            case 'make_player':
-                              controller.assignPlayer(member);
-                              break;
-                            case 'make_speaker':
-                              controller.assignSpeaker(member);
-                              break;
-                            case 'open_player':
-                              controller.openPlayer(member);
-                              break;
-                            case 'open_speaker':
-                              controller.openSpeaker(member);
-                              break;
-                          }
-                        },
-                        itemBuilder: (_) => [
-                          PopupMenuItem(
-                            value: 'make_player',
-                            enabled: member.role != DeviceRole.player && member.role != DeviceRole.admin,
-                            child: const Text('Make Player (time source)'),
-                          ),
-                          PopupMenuItem(
-                            value: 'make_speaker',
-                            enabled: member.role != DeviceRole.speaker,
-                            child: const Text('Make Speaker (listener)'),
-                          ),
-                          const PopupMenuDivider(),
-                          PopupMenuItem(
-                            value: 'open_player',
-                            child: Text('Open Player UI${member.isLocal ? ' (you)' : ''}'),
-                          ),
-                          PopupMenuItem(
-                            value: 'open_speaker',
-                            child: Text('Open Speaker UI${member.isLocal ? ' (you)' : ''}'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              }),
-            ],
-          ),
+                            PopupMenuItem(
+                              value: 'make_speaker',
+                              enabled: member.role != DeviceRole.speaker,
+                              child: const Text('Make Speaker (listener)'),
+                            ),
+                            const PopupMenuDivider(),
+                            PopupMenuItem(
+                              value: 'open_player',
+                              child: Text('Open Player UI${member.isLocal ? ' (you)' : ''}'),
+                            ),
+                            PopupMenuItem(
+                              value: 'open_speaker',
+                              child: Text('Open Speaker UI${member.isLocal ? ' (you)' : ''}'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                }),
+              ],
+            );
+            final contentHeight = _estimateHeight(content, constraints.maxWidth)
+                ?? mediaQuery.size.height;
+            if (contentHeight > constraints.maxHeight) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 24),
+                child: content,
+              );
+            }
+            return content;
+          },
         );
       }),
     );
@@ -309,4 +320,25 @@ class RoleBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+double? _estimateHeight(Widget widget, double width) {
+  // This function estimates the height of a widget given its width.
+  // It's a simplified version and might not be accurate for all widgets.
+  // You can improve this by using a GlobalKey and calculating the height
+  // after the widget is built, but that requires a more complex implementation.
+
+  // For now, let's return a fixed height for some known widgets.
+  if (widget is Column) {
+    double height = 0;
+    for (var child in widget.children) {
+      if (child is SizedBox) {
+        height += child.height ?? 0;
+      } else {
+        height += 48; // Default height for other widgets
+      }
+    }
+    return height;
+  }
+  return null;
 }
