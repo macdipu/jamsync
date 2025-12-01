@@ -15,6 +15,7 @@ import '../domain/services_interfaces/i_media_scanner_service.dart';
 import '../domain/services_interfaces/i_local_storage_service.dart';
 import '../infrastructure/audio/just_audio_playback_service.dart';
 import '../infrastructure/audio/local_media_scanner.dart';
+import '../infrastructure/audio/jam_audio_handler.dart';
 import '../infrastructure/network/socket_messaging_service.dart';
 import '../infrastructure/network/udp_discovery_service.dart';
 import '../infrastructure/sync/sync_engine_impl.dart';
@@ -30,7 +31,10 @@ Future<void> configureDependencies({bool listenForDiscovery = true}) async {
 
   Get.put<AppLogger>(AppLogger());
 
-  Get.lazyPut<IPlaybackService>(JustAudioPlaybackService.new, fenix: true);
+  Get.lazyPut<IPlaybackService>(
+    () => JustAudioPlaybackService(handler: Get.find<JamAudioHandler>()),
+    fenix: true,
+  );
   Get.lazyPut<IMessagingService>(SocketMessagingService.new, fenix: true);
   Get.lazyPut<IDiscoveryService>(
     () => UdpDiscoveryService(logger: Get.find<AppLogger>()),
@@ -61,6 +65,7 @@ Future<void> configureDependencies({bool listenForDiscovery = true}) async {
     () => LocalMediaScanner(OnAudioQuery()),
     fenix: true,
   );
+  Get.lazyPut<JamAudioHandler>(JamAudioHandler.new, fenix: true);
 
   if (listenForDiscovery && !kIsWeb && !Platform.isIOS) {
     await Get.find<IDiscoveryService>().startListening();

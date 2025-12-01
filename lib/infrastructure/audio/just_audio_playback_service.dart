@@ -1,57 +1,32 @@
-import 'package:audio_session/audio_session.dart';
-import 'package:just_audio/just_audio.dart';
-
 import '../../domain/entities/track.dart';
 import '../../domain/services_interfaces/i_playback_service.dart';
+import 'jam_audio_handler.dart';
 
 class JustAudioPlaybackService implements IPlaybackService {
-  JustAudioPlaybackService();
+  JustAudioPlaybackService({required JamAudioHandler handler})
+      : _handler = handler;
 
-  final _player = AudioPlayer();
-  bool _sessionConfigured = false;
-
-  Future<void> _ensureSession() async {
-    if (_sessionConfigured) {
-      return;
-    }
-    final session = await AudioSession.instance;
-    await session.configure(const AudioSessionConfiguration.music());
-    _sessionConfigured = true;
-  }
+  final JamAudioHandler _handler;
 
   @override
-  Future<void> loadTrack(Track track) async {
-    await _ensureSession();
-    await _player.setUrl(track.source.toString());
-  }
+  Future<void> loadTrack(Track track) => _handler.loadTrack(track);
 
   @override
-  Future<void> pause() => _player.pause();
+  Future<void> pause() => _handler.pause();
 
   @override
-  Future<void> play() => _player.play();
+  Future<void> play() => _handler.play();
 
   @override
-  Future<Duration?> getDuration() async => _player.duration;
+  Future<Duration?> getDuration() => _handler.duration();
 
   @override
-  Future<Duration> getPosition() async => _player.position;
+  Future<Duration> getPosition() => _handler.position();
 
   @override
-  Future<void> seek(Duration position) => _player.seek(position);
+  Future<void> seek(Duration position) => _handler.seek(position);
 
   @override
-  Stream<PlaybackState> get state$ {
-    return _player.playerStateStream.map((state) {
-      if (state.processingState == ProcessingState.buffering) {
-        return PlaybackState.buffering;
-      }
-      if (state.playing) {
-        return PlaybackState.playing;
-      }
-      return state.processingState == ProcessingState.completed
-          ? PlaybackState.stopped
-          : PlaybackState.paused;
-    });
-  }
+  Stream<PlaybackState> get state$ => _handler.playbackStateStream
+      .map((event) => event.playing ? PlaybackState.playing : PlaybackState.paused);
 }

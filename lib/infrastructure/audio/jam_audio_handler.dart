@@ -19,7 +19,12 @@ class JamAudioHandler extends BaseAudioHandler with SeekHandler {
     _currentMediaItem = item;
     queue.add([item]);
     mediaItem.add(item);
-    await _player.setAudioSource(AudioSource.uri(track.source));
+    await _player.setAudioSource(
+      AudioSource.uri(
+        track.source,
+        tag: item,
+      ),
+    );
   }
 
   Future<Duration> position() async => _player.position;
