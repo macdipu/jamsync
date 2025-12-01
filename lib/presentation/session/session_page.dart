@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:jamsync/domain/entities/track.dart';
 
 import '../../domain/entities/device.dart';
 import '../../domain/entities/session.dart';
@@ -86,6 +87,7 @@ class SessionPage extends GetView<SessionController> {
                     label: const Text('Scan MP3s'),
                   ),
                 ),
+                _NowPlayingCard(queue: controller.queue, nowPlayingTitle: controller.nowPlayingTitle, nowPlayingArtist: controller.nowPlayingArtist),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Text('Members', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -250,6 +252,58 @@ class _SessionHero extends StatelessWidget {
                   ),
                 ],
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NowPlayingCard extends StatelessWidget {
+  const _NowPlayingCard({
+    required this.queue,
+    required this.nowPlayingTitle,
+    required this.nowPlayingArtist,
+  });
+
+  final RxList<Track> queue;
+  final RxString nowPlayingTitle;
+  final RxString nowPlayingArtist;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Obx(() => Text('Now Playing: ${nowPlayingTitle.value}', style: Theme.of(context).textTheme.titleMedium)),
+              Obx(() => Text(nowPlayingArtist.value, style: Theme.of(context).textTheme.bodySmall)),
+              const SizedBox(height: 8),
+              Obx(() {
+                if (queue.isEmpty) {
+                  return const Text('Queue is empty, scan library to add tracks');
+                }
+                return SizedBox(
+                  height: 160,
+                  child: ListView.builder(
+                    itemCount: queue.length,
+                    itemBuilder: (context, index) {
+                      final track = queue[index];
+                      return ListTile(
+                        dense: true,
+                        leading: Text('${index + 1}'),
+                        title: Text(track.title),
+                        subtitle: Text(track.artist),
+                      );
+                    },
+                  ),
+                );
+              }),
             ],
           ),
         ),

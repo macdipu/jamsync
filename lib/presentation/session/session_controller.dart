@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import '../../app/routes.dart';
 import '../../domain/entities/device.dart';
 import '../../domain/entities/session.dart';
+import '../../domain/entities/track.dart';
 import '../../domain/services_interfaces/i_messaging_service.dart';
 import '../../domain/services_interfaces/i_role_service.dart';
 import '../../domain/services_interfaces/i_session_service.dart';
@@ -25,6 +26,7 @@ class SessionController extends GetxController {
 
   final currentSession = Rxn<Session>();
   final members = <Device>[].obs;
+  final queue = <Track>[].obs;
   final connectionState = MessagingConnectionState.disconnected.obs;
   final reconnecting = false.obs;
   final lastError = RxnString();
@@ -77,6 +79,7 @@ class SessionController extends GetxController {
   void attachSession(Session session) {
     currentSession.value = session;
     members.assignAll(session.members);
+    queue.assignAll(session.queue);
     _updateNowPlaying(session);
     if (session.player?.role == DeviceRole.speaker) {
       Get.toNamed(Routes.speaker, arguments: session);

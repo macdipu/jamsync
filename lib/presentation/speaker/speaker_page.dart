@@ -22,6 +22,20 @@ class SpeakerPage extends GetView<SpeakerController> {
               }
               return Text('Session: ${session.name}');
             }),
+            const SizedBox(height: 8),
+            Obx(() {
+              final track = controller.currentTrack.value;
+              if (track == null) {
+                return const Text('Now Playing: --');
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Now Playing: ${track.title}', style: Theme.of(context).textTheme.titleMedium),
+                  Text(track.artist, style: Theme.of(context).textTheme.bodySmall),
+                ],
+              );
+            }),
             const SizedBox(height: 16),
             Obx(() => Text('Drift: ${controller.driftMs.value.toStringAsFixed(2)} ms')),
             Obx(() => Text('Latency: ${controller.latencyMs.value} ms')),
@@ -59,11 +73,33 @@ class SpeakerPage extends GetView<SpeakerController> {
               );
             }),
             const SizedBox(height: 16),
-            Expanded(
-              child: Center(
-                child: Obx(() => Text('Playback state: ${controller.playbackState.value}')),
-              ),
-            ),
+            Obx(() {
+              final queue = controller.queue;
+              if (queue.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Text('Queue is empty'),
+                );
+              }
+              return Expanded(
+                child: ListView.builder(
+                  itemCount: queue.length,
+                  itemBuilder: (context, index) {
+                    final track = queue[index];
+                    final isCurrent = controller.currentTrack.value?.id == track.id;
+                    return ListTile(
+                      leading: Icon(isCurrent ? Icons.equalizer : Icons.music_note,
+                          color: isCurrent ? Theme.of(context).colorScheme.primary : null),
+                      title: Text(track.title),
+                      subtitle: Text(track.artist),
+                      trailing: isCurrent ? const Text('Playing') : null,
+                    );
+                  },
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
+            Obx(() => Text('Playback state: ${controller.playbackState.value}')),
           ],
         ),
       ),

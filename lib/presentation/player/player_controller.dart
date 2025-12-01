@@ -107,21 +107,37 @@ class PlayerController extends GetxController {
     selectedTrack.value = track;
     await _playbackService.loadTrack(track);
     playbackPosition.value = Duration.zero;
+    await _broadcastPlaybackCommand(
+      'load',
+      {
+        'track': track.toJson(),
+        'positionMs': 0,
+      },
+    );
   }
 
   Future<void> play() async {
     await _playbackService.play();
     isPlaying.value = true;
+    await _broadcastPlaybackCommand('play', {
+      'positionMs': playbackPosition.value.inMilliseconds,
+    });
   }
 
   Future<void> pause() async {
     await _playbackService.pause();
     isPlaying.value = false;
+    await _broadcastPlaybackCommand('pause', {
+      'positionMs': playbackPosition.value.inMilliseconds,
+    });
   }
 
   Future<void> seek(Duration position) async {
     await _playbackService.seek(position);
     playbackPosition.value = position;
+    await _broadcastPlaybackCommand('seek', {
+      'positionMs': position.inMilliseconds,
+    });
   }
 
   void removeTrack(Track track) {
@@ -315,5 +331,21 @@ class PlayerController extends GetxController {
       errorMessage.value = 'Failed to sync queue: $error';
       Get.snackbar('Queue sync', errorMessage.value!, snackPosition: SnackPosition.BOTTOM);
     }
+  }
+
+  Future<void> _broadcastPlaybackCommand(String action, Map<String, dynamic> extraPayload) async {
+    final session = currentSession.value;
+    if (session == null) {
+      return;
+    }
+    final message = ControlMessage(
+      type: MessageType.playbackCommand,
+      payload: {
+        'sessionId': session.id,
+        'action': action,
+        ...extraPayload,
+      },
+    );
+    await _messagingService.send(message);
   }
 }
