@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:get/get.dart';
 
@@ -61,12 +62,19 @@ class PlayerController extends GetxController {
     queue.assignAll(session.queue);
     selectedTrack.value = session.queue.isEmpty ? null : session.queue.first;
     _observePlayback();
+    _startPositionPolling();
 
-    // Start HTTP audio stream server
+    // Start HTTP audio stream server and broadcast URL immediately
     try {
       await _audioStreamService.startServer(port: 8888);
+      await _broadcastStreamServerUrl();
     } catch (e) {
-      // Server might already be running
+      // Server might already be running - try to broadcast URL anyway
+      try {
+        await _broadcastStreamServerUrl();
+      } catch (broadcastError) {
+        Get.log('❌ Failed to broadcast stream server URL: $broadcastError');
+      }
     }
 
     _subscribeToMessages(session.id);
@@ -297,20 +305,38 @@ class PlayerController extends GetxController {
 
   Future<void> _handleStateRequest(Map<String, dynamic> payload) async {
     final session = currentSession.value;
-    final track = selectedTrack.value;
-    if (session == null || track == null) {
+    if (session == null) {
       return;
     }
-    final position = await _playbackService.getPosition();
-    final commands = [
-      ControlMessage(
-        type: MessageType.queueUpdate,
+
+    final commands = <ControlMessage>[];
+
+    // Always send stream URL first if available (even without a track)
+    if (streamUrl.value.isNotEmpty) {
+      commands.add(ControlMessage(
+        type: MessageType.streamUrl,
         payload: {
           'sessionId': session.id,
-          'queue': queue.map((t) => t.toJson()).toList(),
+          'streamUrl': streamUrl.value,
         },
-      ),
-      ControlMessage(
+      ));
+    }
+
+    // Send queue update
+    commands.add(ControlMessage(
+      type: MessageType.queueUpdate,
+      payload: {
+        'sessionId': session.id,
+        'queue': queue.map((t) => t.toJson()).toList(),
+      },
+    ));
+
+    // Send track and playback state if available
+    final track = selectedTrack.value;
+    if (track != null) {
+      final position = await _playbackService.getPosition();
+
+      commands.add(ControlMessage(
         type: MessageType.playbackCommand,
         payload: {
           'sessionId': session.id,
@@ -318,25 +344,19 @@ class PlayerController extends GetxController {
           'track': track.toJson(),
           'positionMs': position.inMilliseconds,
         },
-      ),
-      // Send stream URL if available
-      if (streamUrl.value.isNotEmpty)
-        ControlMessage(
-          type: MessageType.streamUrl,
-          payload: {
-            'sessionId': session.id,
-            'streamUrl': streamUrl.value,
-          },
-        ),
-      ControlMessage(
+      ));
+
+      commands.add(ControlMessage(
         type: MessageType.playbackCommand,
         payload: {
           'sessionId': session.id,
           'action': isPlaying.value ? 'play' : 'pause',
           'positionMs': position.inMilliseconds,
         },
-      ),
-    ];
+      ));
+    }
+
+    // Send all commands in sequence
     for (final command in commands) {
       await _messagingService.send(command);
     }
@@ -438,5 +458,57 @@ class PlayerController extends GetxController {
       },
     );
     await _messagingService.send(message);
+  }
+
+  Future<void> _broadcastStreamServerUrl() async {
+    final session = currentSession.value;
+    if (session == null) {
+      return;
+    }
+
+    // Generate stream URL from server
+    try {
+      final localIp = await _getLocalIpAddress();
+      final url = 'http://$localIp:8888/stream';
+      streamUrl.value = url;
+
+      Get.log('📡 Broadcasting stream server URL to all devices: $url');
+
+      await _messagingService.send(ControlMessage(
+        type: MessageType.streamUrl,
+        payload: {
+          'sessionId': session.id,
+          'streamUrl': url,
+        },
+      ));
+
+      Get.log('✅ Stream server URL broadcast complete');
+    } catch (e) {
+      Get.log('❌ Failed to broadcast stream server URL: $e');
+    }
+  }
+
+  Future<String> _getLocalIpAddress() async {
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLinkLocal: false,
+      );
+
+      for (final interface in interfaces) {
+        for (final addr in interface.addresses) {
+          // Prefer non-loopback addresses
+          if (!addr.isLoopback) {
+            return addr.address;
+          }
+        }
+      }
+
+      // Fallback to localhost
+      return 'localhost';
+    } catch (e) {
+      Get.log('Failed to get local IP: $e');
+      return 'localhost';
+    }
   }
 }

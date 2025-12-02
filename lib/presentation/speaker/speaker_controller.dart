@@ -55,7 +55,9 @@ class SpeakerController extends GetxController {
     _observeStreamStatus();
     _subscribeToMessages(session.id);
     _startPinging();
+    // Request state immediately to get stream URL and prepare for playback
     _requestStateSnapshot();
+    Get.log('🔊 Speaker attached to session, requesting stream connection...');
   }
 
 
@@ -200,9 +202,9 @@ class SpeakerController extends GetxController {
           return;
         }
         final track = Track.fromJson(trackJson);
-
-        // Just update current track - wait for stream URL before loading
         currentTrack.value = track;
+        isStreamConnected.value = false;
+        await _preparePlaybackForCurrentTrack();
         break;
       case 'play':
         // If track not loaded yet, defer play command
@@ -247,6 +249,8 @@ class SpeakerController extends GetxController {
     }
     if (currentTrack.value == null && tracks.isNotEmpty) {
       currentTrack.value = tracks.first;
+      isStreamConnected.value = false;
+      unawaited(_preparePlaybackForCurrentTrack());
     }
   }
 
@@ -258,7 +262,6 @@ class SpeakerController extends GetxController {
     if (trackJson != null) {
       final track = Track.fromJson(trackJson);
       if (currentTrack.value?.id != track.id) {
-        // If we have a stream URL, use it; otherwise use track's source
         final url = streamUrl.value;
         final trackToLoad = url.isNotEmpty
             ? track.copyWith(source: Uri.parse(url))
@@ -266,6 +269,10 @@ class SpeakerController extends GetxController {
 
         await _playbackService.loadTrack(trackToLoad);
         currentTrack.value = track;
+        if (url.isNotEmpty) {
+          isStreamConnected.value = true;
+        }
+        await _applyPendingPlayCommand();
       }
     }
 
@@ -287,30 +294,61 @@ class SpeakerController extends GetxController {
 
     Get.log('✅ Received stream URL: $url');
     streamUrl.value = url;
+
+    // Immediately prepare playback if track is available
+    await _preparePlaybackForCurrentTrack();
+
+    // Mark that we're ready to receive streamed audio
+    Get.log('🎧 Speaker ready to receive audio stream from host');
+  }
+
+  Future<void> _preparePlaybackForCurrentTrack() async {
     final track = currentTrack.value;
-
-    if (track != null) {
-      try {
-        Get.log('🔄 Loading track from stream URL...');
-        final streamTrack = track.copyWith(source: Uri.parse(url));
-        await _playbackService.loadTrack(streamTrack);
-
-        Get.log('✅ Track loaded from stream! Setting connection status to true');
-        isStreamConnected.value = true;
-
-        final pendingPlay = _pendingPlayCommand.value;
-        if (pendingPlay != null) {
-          Get.log('▶️ Executing pending play command');
-          await _seekToPayloadPosition(pendingPlay);
-          await _playbackService.play();
-          _pendingPlayCommand.value = null;
-        }
-      } catch (e) {
-        Get.log('❌ Failed to load track from stream: $e');
-        isStreamConnected.value = false;
-      }
-    } else {
-      Get.log('⚠️ No current track to load stream URL into');
+    final url = streamUrl.value;
+    if (url.isNotEmpty && track == null) {
+      Get.log('✅ Stream connection ready, waiting for track to be assigned...');
+      return;
     }
+
+    if (track == null) {
+      Get.log('ℹ️ No track or stream URL available yet, waiting...');
+      return;
+    }
+    if (url.isEmpty) {
+      final source = track.source;
+      final canStreamDirect = source.isScheme('http') || source.isScheme('https');
+      if (!canStreamDirect) {
+        Get.log('⌛ Waiting for host stream URL before loading "${track.title}"');
+        return;
+      }
+      Get.log('🌐 Track has direct HTTP URL, loading without host stream');
+      await _loadTrackAndApplyPending(track, markStreamConnected: false);
+      return;
+    }
+    Get.log('🎵 Loading track "${track.title}" from host stream: $url');
+    final streamTrack = track.copyWith(source: Uri.parse(url));
+    await _loadTrackAndApplyPending(streamTrack, markStreamConnected: true);
+  }
+
+  Future<void> _loadTrackAndApplyPending(Track track, {required bool markStreamConnected}) async {
+    try {
+      await _playbackService.loadTrack(track);
+      isStreamConnected.value = markStreamConnected;
+      await _applyPendingPlayCommand();
+    } catch (e) {
+      isStreamConnected.value = false;
+      Get.log('❌ Failed to load track for speaker: $e');
+    }
+  }
+
+  Future<void> _applyPendingPlayCommand() async {
+    final pendingPlay = _pendingPlayCommand.value;
+    if (pendingPlay == null) {
+      return;
+    }
+    Get.log('▶️ Executing pending play command after track load');
+    await _seekToPayloadPosition(pendingPlay);
+    await _playbackService.play();
+    _pendingPlayCommand.value = null;
   }
 }

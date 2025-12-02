@@ -4,8 +4,7 @@ import 'dart:convert';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
+import 'package:flutter/services.dart';
 
 import '../../core/logging/app_logger.dart';
 import '../../domain/entities/track.dart';
@@ -19,7 +18,7 @@ class HttpAudioStreamService implements IAudioStreamService {
   AudioPlayer? _sourcePlayer;
   Track? _currentTrack;
   String? _currentStreamUrl;
-  File? _cachedAudioFile;  // Cache file for content URIs
+  String? _cachedFilePath;  // Temporary file path for content URIs
   final _statusController = StreamController<AudioStreamStatus>.broadcast();
   final _positionController = StreamController<Duration>.broadcast();
   Timer? _positionTimer;
@@ -75,6 +74,20 @@ class HttpAudioStreamService implements IAudioStreamService {
     await _sourcePlayer?.dispose();
     _sourcePlayer = null;
 
+    // Clean up cached file
+    if (_cachedFilePath != null) {
+      try {
+        final file = File(_cachedFilePath!);
+        if (await file.exists()) {
+          await file.delete();
+          _logger?.info('Cleaned up cached file: $_cachedFilePath');
+        }
+      } catch (e) {
+        _logger?.warn('Failed to delete cached file: $e');
+      }
+      _cachedFilePath = null;
+    }
+
     await _server?.close(force: true);
     _server = null;
     _serverPort = null;
@@ -98,9 +111,30 @@ class HttpAudioStreamService implements IAudioStreamService {
     await _sourcePlayer?.dispose();
     _positionTimer?.cancel();
 
+    // Clean up old cached file if exists
+    if (_cachedFilePath != null) {
+      try {
+        final oldFile = File(_cachedFilePath!);
+        if (await oldFile.exists()) {
+          await oldFile.delete();
+        }
+      } catch (e) {
+        _logger?.warn('Failed to delete old cached file: $e');
+      }
+      _cachedFilePath = null;
+    }
+
     // Create new player for this track
     _sourcePlayer = AudioPlayer();
     _currentTrack = track;
+
+    // For content:// URIs, we need to cache the file first
+    final source = track.source;
+    if (source.isScheme('content')) {
+      _logger?.info('Content URI detected, caching file for HTTP streaming...');
+      _cachedFilePath = await _cacheContentUri(source);
+      _logger?.info('Content URI cached to: $_cachedFilePath');
+    }
 
     // Load the track
     await _sourcePlayer!.setUrl(track.source.toString());
@@ -154,8 +188,43 @@ class HttpAudioStreamService implements IAudioStreamService {
 
       _logger?.info('Stream source: ${source.toString()}, scheme: ${source.scheme}');
 
+      // For content:// scheme (Android Media Store), use the cached file
+      if (source.isScheme('content')) {
+        if (_cachedFilePath == null) {
+          _logger?.error('Content URI cached file not found');
+          return Response.internalServerError(
+            body: 'Content URI file not cached. Internal error.'
+          );
+        }
+
+        try {
+          final file = File(_cachedFilePath!);
+          if (!await file.exists()) {
+            _logger?.error('Cached file not found: $_cachedFilePath');
+            return Response.notFound('Cached audio file not found');
+          }
+
+          final mimeType = _getMimeType(_cachedFilePath!);
+          final length = await file.length();
+
+          _logger?.info('Streaming cached content URI file: $_cachedFilePath, size: $length bytes');
+
+          return Response.ok(
+            file.openRead(),
+            headers: {
+              'Content-Type': mimeType,
+              'Content-Length': length.toString(),
+              'Accept-Ranges': 'bytes',
+              'Cache-Control': 'no-cache',
+            },
+          );
+        } catch (e, stackTrace) {
+          _logger?.error('Error reading cached file: $e', e, stackTrace);
+          return Response.internalServerError(body: 'Error reading cached file: $e');
+        }
+      }
       // For file:// scheme, stream the file directly
-      if (source.isScheme('file')) {
+      else if (source.isScheme('file')) {
         try {
           final file = File(source.toFilePath());
           if (!await file.exists()) {
@@ -181,15 +250,6 @@ class HttpAudioStreamService implements IAudioStreamService {
           _logger?.error('Error reading file: $e', e, stackTrace);
           return Response.internalServerError(body: 'Error reading file: $e');
         }
-      }
-      // For content:// scheme (Android Media Store), we need to proxy through the URI
-      else if (source.isScheme('content')) {
-        _logger?.warn('Content URI streaming not supported yet: ${source.toString()}');
-        _logger?.warn('Content URIs cannot be directly streamed via HTTP. Player should use local playback.');
-        return Response(501,
-          body: 'Content URI streaming not implemented. '
-                'The track at ${source.toString()} must be played locally on the host device. '
-                'Remote speakers cannot stream from Android content:// URIs.');
       }
       // For http/https, proxy the stream
       else if (source.isScheme('http') || source.isScheme('https')) {
@@ -263,6 +323,27 @@ class HttpAudioStreamService implements IAudioStreamService {
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Origin, Content-Type',
   };
+
+  /// Cache a content URI to a temporary file for HTTP streaming
+  Future<String> _cacheContentUri(Uri contentUri) async {
+    try {
+      // Use MethodChannel to read content URI on Android
+      const platform = MethodChannel('com.chowdhuryelab.jamsync/content_resolver');
+
+      final result = await platform.invokeMethod('copyContentToCache', {
+        'uri': contentUri.toString(),
+      });
+
+      if (result == null) {
+        throw Exception('Failed to cache content URI: null result');
+      }
+
+      return result as String;
+    } catch (e) {
+      _logger?.error('Failed to cache content URI: $e', e);
+      rethrow;
+    }
+  }
 
   String _getMimeType(String path) {
     final extension = path.split('.').last.toLowerCase();
